@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pirates of Probability - AR Body Movement Game</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts (Kanit) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- MediaPipe Hands for Body Gesture Detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        * {
+            font-family: 'Kanit', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Animation Keyframes */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(2deg); }
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 15px rgba(234, 179, 8, 0.6); }
+            50% { box-shadow: 0 0 30px rgba(234, 179, 8, 0.9); }
+        }
+
+        @keyframes wave {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .floating {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .gold-glow {
+            animation: pulse-glow 2s infinite;
+        }
+
+        /* Pirate Wooden Theme Texture/Gradient */
+        .wood-panel {
+            background: linear-gradient(135deg, #78350f 0%, #451a03 100%);
+            border: 4px solid #f59e0b;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 0 8px 20px rgba(0,0,0,0.4);
+        }
+
+        .pirate-btn {
+            background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+            border: 2px solid #fff;
+            box-shadow: 0 4px 0 #92400e;
+            transition: all 0.1s ease;
+        }
+
+        .pirate-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #92400e;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #f59e0b;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white overflow-hidden h-screen w-screen relative">
+
+    <!-- AR Camera Canvas Overlay Container -->
+    <div id="ar-view" class="absolute inset-0 z-0">
+        <!-- Live Video Element -->
+        <video id="webcam" class="w-full h-full object-cover hidden" playsinline></video>
+        <!-- AR Rendering Canvas -->
+        <canvas id="ar-canvas" class="w-full h-full object-cover"></canvas>
+    </div>
+
+    <!-- UI Overlay Layer -->
+    <div id="ui-layer" class="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none p-4">
+
+        <!-- Header / Stats Bar -->
+        <header id="header-bar" class="flex justify-between items-center w-full pointer-events-auto bg-slate-900/80 backdrop-blur-md p-3 rounded-2xl border-2 border-yellow-500 shadow-xl">
+            <!-- Team & Mode Info -->
+            <div class="flex items-center space-x-3">
+                <div class="bg-yellow-500 text-slate-900 p-2.5 rounded-xl text-xl font-black flex items-center shadow-lg">
+                    <i class="fa-solid fa-ship mr-2"></i>
+                    <span id="team-name-display">ทีมกัปตันลูกเรือ</span>
+                </div>
+                <div class="hidden sm:flex flex-col">
+                    <span class="text-xs text-yellow-400 font-semibold">ระดับความยาก</span>
+                    <span id="difficulty-badge" class="text-sm font-bold text-green-400">Easy (ง่าย)</span>
+                </div>
+            </div>
+
+            <!-- Game Stats: Score, Gold, Timer -->
+            <div class="flex items-center space-x-4">
+                <!-- Score -->
+                <div class="flex items-center bg-slate-800/90 px-3 py-1.5 rounded-xl border border-yellow-500/50">
+                    <i class="fa-solid fa-star text-yellow-400 text-lg mr-2"></i>
+                    <div>
+                        <div class="text-[10px] text-gray-400 leading-none">คะแนน</div>
+                        <div id="score-text" class="text-lg font-extrabold text-yellow-300">0</div>
+                    </div>
+                </div>
+
+                <!-- Gold Coins -->
+                <div class="flex items-center bg-slate-800/90 px-3 py-1.5 rounded-xl border border-yellow-500/50">
+                    <i class="fa-solid fa-coins text-amber-400 text-lg mr-2 floating"></i>
+                    <div>
+                        <div class="text-[10px] text-gray-400 leading-none">เหรียญทอง</div>
+                        <div id="gold-text" class="text-lg font-extrabold text-amber-300">0</div>
+                    </div>
+                </div>
+
+                <!-- Timer -->
+                <div class="flex items-center bg-slate-800/90 px-3.5 py-1.5 rounded-xl border border-red-500/50">
+                    <i class="fa-solid fa-stopwatch text-red-400 text-xl mr-2"></i>
+                    <div>
+                        <div class="text-[10px] text-gray-400 leading-none">เวลา</div>
+                        <div id="timer-text" class="text-lg font-black text-red-400">60s</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Banner / Quest Display Container -->
+        <main id="quest-container" class="my-auto mx-auto w-full max-w-3xl pointer-events-auto transition-all duration-300">
+            <!-- Quest Card (Injected dynamically) -->
+            <div id="quest-card" class="wood-panel rounded-3xl p-6 text-center text-white shadow-2xl relative overflow-hidden">
+                <div class="absolute -top-10 -right-10 text-yellow-500/10 text-9xl">
+                    <i class="fa-solid fa-compass"></i>
+                </div>
+                
+                <div class="inline-block bg-yellow-500 text-slate-900 px-4 py-1 rounded-full font-extrabold text-sm mb-2 shadow">
+                    <span id="quest-number">ภารกิจที่ 1</span>: <span id="quest-title">เกาะตัวเลข</span>
+                </div>
+
+                <h2 id="quest-question" class="text-2xl sm:text-3xl font-bold my-3 text-yellow-200 drop-shadow-md">
+                    "ทอยลูกเต๋า 2 ลูก ผลรวมเท่ากับ 7 มีความน่าจะเป็นเท่าใด?"
+                </h2>
+
+                <p id="quest-instruction" class="text-sm sm:text-base text-amber-100/90 bg-black/30 py-2 px-4 rounded-xl inline-block">
+                    <i class="fa-solid fa-walking mr-1 text-yellow-400"></i> เดินไปยืนตรงเกาะคำตอบ AR บนพื้น หรือยกมือชี้คำตอบที่ถูกต้อง
+                </p>
+
+                <!-- AR Trigger / Answer Display Overlay (When Gesture Active) -->
+                <div id="ar-gesture-status" class="mt-4 flex justify-center items-center space-x-2 text-xs text-yellow-300">
+                    <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-ping"></span>
+                    <span>ระบบ AR Body Motion กำลังตรวจจับท่าทางและตำแหน่งของคุณ...</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Dynamic Controls & Action Dock -->
+        <footer class="w-full pointer-events-auto flex flex-col sm:flex-row justify-between items-center gap-3 bg-slate-900/90 backdrop-blur-md p-3 rounded-2xl border-2 border-yellow-600/50">
+            <!-- Camera / Motion Status & Toggle -->
+            <div class="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-start">
+                <button id="btn-toggle-camera" onclick="toggleCamera()" class="pirate-btn px-4 py-2 rounded-xl text-slate-900 font-bold text-sm flex items-center">
+                    <i class="fa-solid fa-camera mr-2"></i> <span id="camera-btn-text">เปิดกล้อง AR</span>
+                </button>
+                <div class="text-xs text-slate-300 flex items-center">
+                    <i class="fa-solid fa-child-reaching text-yellow-400 text-base mr-1.5"></i>
+                    <span id="motion-status-text">พร้อมตรวจจับท่าทางผู้เล่น</span>
+                </div>
+            </div>
+
+            <!-- Action Buttons for Gameplay & Navigation -->
+            <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
+                <button onclick="explainAnswerModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-sm border border-blue-400 shadow transition flex items-center">
+                    <i class="fa-solid fa-lightbulb mr-1.5 text-yellow-300"></i> อธิบายเหตุผล (+5)
+                </button>
+                <button onclick="skipQuest()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold px-3 py-2 rounded-xl text-sm border border-slate-500">
+                    <i class="fa-solid fa-forward"></i>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ================= MODALS & OVERLAYS ================= -->
+
+    <!-- Modal: Start / Menu / Settings -->
+    <div id="start-modal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-lg flex items-center justify-center p-4">
+        <div class="wood-panel max-w-xl w-full rounded-3xl p-6 sm:p-8 text-center text-white relative shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div class="floating text-6xl text-yellow-400 mb-2">
+                <i class="fa-solid fa-skull-crossbones"></i>
+            </div>
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-yellow-400 tracking-wide drop-shadow-lg mb-1">
+                ศึกโจรสลัดพิชิตมหาสมุทรแห่งความน่าจะเป็น
+            </h1>
+            <p class="text-amber-200 text-sm mb-6">Pirates of Probability: Active Body-Movement AR Game</p>
+
+            <!-- Form Setup -->
+            <div class="space-y-4 text-left bg-black/40 p-5 rounded-2xl border border-yellow-500/30 mb-6">
+                <div>
+                    <label class="block text-xs font-bold text-yellow-300 mb-1">ชื่อทีมโจรสลัด</label>
+                    <input type="text" id="input-team-name" value="ทีมกัปตันเหรียญทอง" class="w-full bg-slate-800 border-2 border-yellow-500/60 rounded-xl px-4 py-2 text-white font-bold focus:outline-none focus:border-yellow-400">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-yellow-300 mb-1">ระดับความยาก</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" onclick="selectDifficulty('easy')" id="diff-easy" class="py-2 rounded-xl font-bold text-sm bg-green-600 text-white border-2 border-green-400">Easy (ง่าย)</button>
+                        <button type="button" onclick="selectDifficulty('medium')" id="diff-medium" class="py-2 rounded-xl font-bold text-sm bg-slate-800 text-gray-300 border border-slate-600">Medium (ปานกลาง)</button>
+                        <button type="button" onclick="selectDifficulty('hard')" id="diff-hard" class="py-2 rounded-xl font-bold text-sm bg-slate-800 text-gray-300 border border-slate-600">Hard (ท้าทาย)</button>
+                    </div>
+                </div>
+
+                <div class="text-xs text-amber-200/80 bg-amber-900/30 p-3 rounded-lg border border-amber-600/30">
+                    <i class="fa-solid fa-circle-info text-yellow-400 mr-1"></i>
+                    <strong>กติกา AR ร่างกาย:</strong> นักเรียนใช้การขยับร่างกาย เดิน ยืน หรือชี้มือไปยังวัตถุ AR คำตอบที่ลอยอยู่บนพื้นจริงเพื่อพิชิตภารกิจ
+                </div>
+            </div>
+
+            <button onclick="startGame()" class="pirate-btn w-full py-4 rounded-2xl text-slate-900 font-extrabold text-xl shadow-xl hover:brightness-110 flex items-center justify-center">
+                <i class="fa-solid fa-play mr-2"></i> เริ่มออกเดินเรือพิชิตสมบัติ!
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal: Answer Feedback (Correct / Incorrect) -->
+    <div id="feedback-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div id="feedback-card" class="wood-panel max-w-md w-full rounded-3xl p-6 text-center text-white relative shadow-2xl transform transition-all duration-300 scale-95">
+            <div id="feedback-icon" class="text-7xl mb-3">
+                <!-- Icon Injected dynamically -->
+            </div>
+            <h3 id="feedback-title" class="text-3xl font-extrabold mb-2 text-yellow-300">ถูกต้องแล้ว!</h3>
+            <p id="feedback-detail" class="text-base text-amber-100 mb-6 bg-black/40 p-4 rounded-xl text-left border border-yellow-500/30">
+                คำอธิบายความน่าจะเป็น...
+            </p>
+            <button onclick="closeFeedback()" class="pirate-btn w-full py-3 rounded-xl text-slate-900 font-extrabold text-lg shadow-lg">
+                ภารกิจถัดไป <i class="fa-solid fa-arrow-right ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal: Reason Explanation (+5 Points) -->
+    <div id="explain-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="wood-panel max-w-lg w-full rounded-3xl p-6 text-center text-white relative shadow-2xl">
+            <div class="text-4xl text-yellow-400 mb-2">
+                <i class="fa-solid fa-comments"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-yellow-300 mb-2">อธิบายเหตุผลทางคณิตศาสตร์</h3>
+            <p class="text-sm text-amber-200 mb-4">ให้นักเรียนในทีมช่วยกันอธิบายเหตุผลให้เพื่อนหรือคุณครูฟังเพื่อรับโบนัสคะแนน +5</p>
+
+            <div class="bg-black/40 p-4 rounded-2xl text-left text-sm text-yellow-100 mb-5 border border-yellow-500/30 space-y-2">
+                <div class="font-bold text-yellow-400">แนวทางการอธิบาย:</div>
+                <div id="explanation-hint">• จำนวนผลลัพธ์ทั้งหมดที่อาจจะเกิดขึ้น (Sample Space) มีกี่แบบ?</div>
+                <div>• จำนวนเหตุการณ์ที่เราสนใจ (Event) มีกี่แบบ?</div>
+                <div>• สูตรความน่าจะเป็น P(E) = n(E) / n(S)</div>
+            </div>
+
+            <div class="flex space-x-3">
+                <button onclick="closeExplainModal(false)" class="w-1/2 py-3 rounded-xl bg-slate-700 hover:bg-slate-600 font-bold text-sm">ยังไม่อธิบาย</button>
+                <button onclick="closeExplainModal(true)" class="w-1/2 pirate-btn py-3 rounded-xl text-slate-900 font-extrabold text-sm shadow">อธิบายสำเร็จ (+5)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Game Over / Summary -->
+    <div id="gameover-modal" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 hidden">
+        <div class="wood-panel max-w-xl w-full rounded-3xl p-6 sm:p-8 text-center text-white relative shadow-2xl">
+            <div class="floating text-7xl text-amber-400 mb-3">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            <h2 class="text-3xl sm:text-4xl font-black text-yellow-400 mb-1">สรุปผลการพิชิตมหาสมุทร!</h2>
+            <p id="final-team-display" class="text-amber-200 font-bold mb-6">ทีม: กัปตันลูกเรือ</p>
+
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="bg-black/50 p-4 rounded-2xl border border-yellow-500/40">
+                    <div class="text-xs text-gray-400">คะแนนรวมทั้งหมด</div>
+                    <div id="final-score" class="text-3xl font-black text-yellow-300">0</div>
+                </div>
+                <div class="bg-black/50 p-4 rounded-2xl border border-amber-500/40">
+                    <div class="text-xs text-gray-400">สมบัติเหรียญทอง</div>
+                    <div id="final-gold" class="text-3xl font-black text-amber-400">0</div>
+                </div>
+            </div>
+
+            <div id="treasure-rank" class="bg-amber-900/40 p-4 rounded-2xl border border-amber-500/50 mb-6 text-sm font-semibold text-amber-200">
+                🏆 ฉายาโจรสลัด: <span id="rank-title" class="text-yellow-300 font-extrabold">เจ้าแห่งมหาสมุทรความน่าจะเป็น</span>
+            </div>
+
+            <button onclick="restartGame()" class="pirate-btn w-full py-4 rounded-2xl text-slate-900 font-extrabold text-xl shadow-xl">
+                <i class="fa-solid fa-rotate-right mr-2"></i> เล่นใหม่อีกครั้ง
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN JAVASCRIPT LOGIC -->
+    <script>
+        /* ================= GAME STATE & VARIABLES ================= */
+        let gameState = {
+            teamName: 'ทีมกัปตันลูกเรือ',
+            difficulty: 'easy',
+            score: 0,
+            gold: 0,
+            currentQuestIndex: 0,
+            timeLeft: 60,
+            timerInterval: null,
+            cameraActive: false,
+            handDetected: false,
+            handPos: { x: 0.5, y: 0.5 }
+        };
+
+        // Quest Data (ภารกิจคณิตศาสตร์ความน่าจะเป็น 4 รูปแบบตามโจทย์)
+        const questsData = [
+            {
+                id: 1,
+                title: "เกาะตัวเลข (Number Islands)",
+                type: "islands",
+                question: "ทอยลูกเต๋า 2 ลูก ผลรวมเท่ากับ 7 มีความน่าจะเป็นเท่าใด?",
+                instruction: "เดินขยับร่างกายไปยืนบนเกาะคำตอบที่ถูกต้องบนพื้นที่ AR",
+                options: ["1/6", "5/36", "1/12", "7/36"],
+                correctIndex: 0,
+                explanation: "ผลรวมลูกเต๋าเท่ากับ 7 มี 6 แบบ ได้แก่ (1,6),(2,5),(3,4),(4,3),(5,2),(6,1) จากผลลัพธ์ทั้งหมด 36 แบบ ความน่าจะเป็นจึงเป็น 6/36 = 1/6"
+            },
+            {
+                id: 2,
+                title: "ลูกเต๋ามนุษย์ (Human Dice)",
+                type: "human_dice",
+                question: "นักเรียน 2 คนทำท่าชูนิ้วเป็นลูกเต๋า คนที่หนึ่งชู 4 นิ้ว คนที่สองชู 3 นิ้ว ผลรวมมีโอกาสเกิดผลลัพธ์คี่เท่าใด?",
+                instruction: "ให้นักเรียน 2 คนรวมผลนิ้วมือ (4+3=7) แล้วเดินไปเลือกโอกาสที่ถูกต้อง",
+                options: ["1/2 (50%)", "1/3", "1/4", "2/3"],
+                correctIndex: 0,
+                explanation: "ผลรวมของลูกเต๋า 2 ลูกที่เป็นจำนวนคี่ มี 18 แบบจาก 36 แบบ ดังนั้นความน่าจะเป็นคือ 18/36 = 1/2 หรือ 50%"
+            },
+            {
+                id: 3,
+                title: "กราฟมนุษย์ 3D (Human Bar Chart)",
+                type: "human_graph",
+                question: "จากการทดลองทอยลูกเต๋า 2 ลูกหลายๆ ครั้ง ผลรวมตัวเลขใดมีโอกาสเกิดขึ้นได้มากที่สุด?",
+                instruction: "ให้นักเรียนเข้าประจำตำแหน่งเลข 2-12 บนพื้น AR แล้วเลือกยอดกราฟที่สูงที่สุด",
+                options: ["ผลรวมเท่ากับ 7", "ผลรวมเท่ากับ 12", "ผลรวมเท่ากับ 2", "ผลรวมเท่ากับ 6"],
+                correctIndex: 0,
+                explanation: "ผลรวม 7 มีจำนวนคู่ผลลัพธ์มากที่สุด คือ 6 แบบ (1+6, 2+5, 3+4, 4+3, 5+2, 6+1) กราฟความถี่จึงสูงที่สุด"
+            },
+            {
+                id: 4,
+                title: "Pirate Reaction (ปฏิกิริยาโจรสลัด)",
+                type: "reaction",
+                question: "เหตุการณ์: 'ทอยลูกเต๋า 1 ลูกได้แต้มระหว่าง 1 ถึง 6'",
+                instruction: "ทำท่าทางตามคำสั่ง AR: หากแน่นอนให้ชูมือสองข้าง หากเป็นไปไม่ได้ให้ย่อตัว",
+                options: ["เกิดแน่นอน (Certain)", "เป็นไปไม่ได้ (Impossible)", "อาจจะเกิดขึ้น (Likely)"],
+                correctIndex: 0,
+                explanation: "ลูกเต๋าทั่วไปมีแต้ม 1, 2, 3, 4, 5, 6 ดังนั้นเหตุการณ์การได้แต้ม 1-6 จึงเป็นเหตุการณ์ที่เกิดขึ้นแน่นอน (ความน่าจะเป็น = 1)"
+            }
+        ];
+
+        /* ================= CANVAS AR ENGINE ================= */
+        const canvas = document.getElementById('ar-canvas');
+        const ctx = canvas.getContext('2d');
+        const videoElement = document.getElementById('webcam');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Canvas AR Animated Assets Logic
+        let arObjects = [];
+        let waveOffset = 0;
+
+        function initARScene() {
+            arObjects = [];
+            const quest = questsData[gameState.currentQuestIndex];
+            
+            // Create Interactive AR Islands / Option Nodes on Canvas
+            const opts = quest.options;
+            const total = opts.length;
+            
+            opts.forEach((opt, idx) => {
+                const angle = (idx / total) * Math.PI * 2;
+                // Position options evenly on the lower half of screen (Floor projection)
+                const marginX = canvas.width * 0.2;
+                const spacingX = (canvas.width - marginX * 2) / (total > 1 ? total - 1 : 1);
+                
+                arObjects.push({
+                    id: idx,
+                    text: opt,
+                    x: total === 1 ? canvas.width / 2 : marginX + spacingX * idx,
+                    y: canvas.height * 0.72,
+                    radius: Math.min(canvas.width * 0.1, 75),
+                    color: '#f59e0b',
+                    hovered: false,
+                    scale: 1
+                });
+            });
+        }
+
+        // Render AR Graphics Engine Loop
+        function renderAR() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Render AR Ocean Background Waves (Fantasy Effect)
+            waveOffset += 0.03;
+            ctx.fillStyle = 'rgba(14, 116, 144, 0.25)';
+            ctx.beginPath();
+            for (let x = 0; x <= canvas.width; x += 20) {
+                let y = Math.sin(x * 0.01 + waveOffset) * 12 + canvas.height * 0.65;
+                if (x === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.lineTo(0, canvas.height);
+            ctx.fill();
+
+            // 2. Render Pirate Ship AR Floating Asset
+            const shipX = canvas.width * 0.85;
+            const shipY = canvas.height * 0.25 + Math.sin(waveOffset * 1.5) * 8;
+            ctx.save();
+            ctx.font = '60px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('🏴‍☠️', shipX, shipY);
+            ctx.restore();
+
+            // 3. Render Interactive AR Target Islands / Buttons
+            arObjects.forEach((obj) => {
+                ctx.save();
+                ctx.translate(obj.x, obj.y);
+
+                // Pulse effect if hovered
+                if (obj.hovered) {
+                    obj.scale = Math.min(obj.scale + 0.05, 1.15);
+                } else {
+                    obj.scale = Math.max(obj.scale - 0.05, 1.0);
+                }
+                ctx.scale(obj.scale, obj.scale);
+
+                // Island Base (3D Floor Circle Overlay)
+                ctx.beginPath();
+                ctx.ellipse(0, 20, obj.radius, obj.radius * 0.4, 0, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(217, 119, 6, 0.4)';
+                ctx.fill();
+
+                // AR Chest/Palm Tree Icon
+                ctx.font = '28px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('🏝️', 0, -obj.radius * 0.5);
+
+                // Answer Bubble Ring
+                ctx.beginPath();
+                ctx.arc(0, 0, obj.radius, 0, Math.PI * 2);
+                ctx.fillStyle = obj.hovered ? 'rgba(234, 179, 8, 0.95)' : 'rgba(15, 23, 42, 0.85)';
+                ctx.fill();
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = '#f59e0b';
+                ctx.stroke();
+
+                // Option Text Label
+                ctx.fillStyle = obj.hovered ? '#0f172a' : '#fef08a';
+                ctx.font = 'bold 20px Kanit';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(obj.text, 0, 2);
+
+                ctx.restore();
+            });
+
+            // 4. Render User Body/Hand AR Tracker Marker
+            if (gameState.handDetected) {
+                const targetX = gameState.handPos.x * canvas.width;
+                const targetY = gameState.handPos.y * canvas.height;
+
+                // Custom AR Crosshair / Pirate Hook Cursor
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(targetX, targetY, 20, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.5)';
+                ctx.fill();
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#ef4444';
+                ctx.stroke();
+
+                ctx.font = '24px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🎯', targetX, targetY);
+                ctx.restore();
+
+                // Collision Detection with AR Island Buttons
+                arObjects.forEach((obj) => {
+                    const dist = Math.hypot(targetX - obj.x, targetY - obj.y);
+                    if (dist < obj.radius) {
+                        if (!obj.hovered) {
+                            obj.hovered = true;
+                            // Trigger Selection
+                            setTimeout(() => {
+                                checkAnswer(obj.id);
+                            }, 300);
+                        }
+                    } else {
+                        obj.hovered = false;
+                    }
+                });
+            }
+
+            requestAnimationFrame(renderAR);
+        }
+
+        /* ================= MEDIAPIPE HAND/BODY TRACKING ================= */
+        let hands = null;
+        let camera = null;
+
+        function setupMediaPipe() {
+            hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            hands.onResults((results) => {
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    gameState.handDetected = true;
+                    // Index finger tip landmark (Point 8)
+                    const lm = results.multiHandLandmarks[0][8];
+                    // Mirroring X coordinate for natural camera movement
+                    gameState.handPos = { x: 1 - lm.x, y: lm.y };
+                    document.getElementById('motion-status-text').innerText = "ตรวจพบการเคลื่อนไหวของร่างกาย/มือ!";
+                } else {
+                    gameState.handDetected = false;
+                    document.getElementById('motion-status-text').innerText = "พร้อมตรวจจับท่าทางผู้เล่น";
+                }
+            });
+        }
+
+        async function toggleCamera() {
+            const btnText = document.getElementById('camera-btn-text');
+            if (!gameState.cameraActive) {
+                try {
+                    videoElement.classList.remove('hidden');
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                    videoElement.srcObject = stream;
+                    await videoElement.play();
+
+                    if (!hands) setupMediaPipe();
+
+                    // Camera frame processing loop
+                    async function processVideo() {
+                        if (gameState.cameraActive && !videoElement.paused) {
+                            await hands.send({ image: videoElement });
+                            requestAnimationFrame(processVideo);
+                        }
+                    }
+                    gameState.cameraActive = true;
+                    btnText.innerText = "ปิดกล้อง AR";
+                    processVideo();
+                } catch (err) {
+                    alert("ไม่สามารถเข้าถึงกล้องได้ ระบบจะใช้โหมด AR จำลองบนหน้าจอแทน");
+                    console.error("Camera access error:", err);
+                }
+            } else {
+                gameState.cameraActive = false;
+                if (videoElement.srcObject) {
+                    videoElement.srcObject.getTracks().forEach(track => track.stop());
+                }
+                videoElement.classList.add('hidden');
+                btnText.innerText = "เปิดกล้อง AR";
+            }
+        }
+
+        /* ================= GAMEPLAY CONTROLLER LOGIC ================= */
+        function selectDifficulty(diff) {
+            gameState.difficulty = diff;
+            const diffs = ['easy', 'medium', 'hard'];
+            diffs.forEach(d => {
+                const btn = document.getElementById(`diff-${d}`);
+                if (d === diff) {
+                    btn.className = "py-2 rounded-xl font-bold text-sm bg-green-600 text-white border-2 border-green-400 shadow";
+                } else {
+                    btn.className = "py-2 rounded-xl font-bold text-sm bg-slate-800 text-gray-300 border border-slate-600";
+                }
+            });
+
+            const badge = document.getElementById('difficulty-badge');
+            if (diff === 'easy') { badge.innerText = 'Easy (ง่าย)'; badge.className = 'text-sm font-bold text-green-400'; }
+            if (diff === 'medium') { badge.innerText = 'Medium (ปานกลาง)'; badge.className = 'text-sm font-bold text-yellow-400'; }
+            if (diff === 'hard') { badge.innerText = 'Hard (ท้าทาย)'; badge.className = 'text-sm font-bold text-red-400'; }
+        }
+
+        function startGame() {
+            const inputName = document.getElementById('input-team-name').value.trim();
+            if (inputName) gameState.teamName = inputName;
+            document.getElementById('team-name-display').innerText = gameState.teamName;
+
+            document.getElementById('start-modal').classList.add('hidden');
+            
+            gameState.score = 0;
+            gameState.gold = 0;
+            gameState.currentQuestIndex = 0;
+            updateStatsUI();
+
+            loadQuest(0);
+            startTimer();
+            renderAR();
+        }
+
+        function loadQuest(index) {
+            if (index >= questsData.length) {
+                endGame();
+                return;
+            }
+
+            gameState.currentQuestIndex = index;
+            const q = questsData[index];
+
+            document.getElementById('quest-number').innerText = `ภารกิจที่ ${q.id}`;
+            document.getElementById('quest-title').innerText = q.title;
+            document.getElementById('quest-question').innerText = `"${q.question}"`;
+            document.getElementById('quest-instruction').innerText = `👉 ${q.instruction}`;
+
+            initARScene();
+        }
+
+        function checkAnswer(selectedIndex) {
+            const quest = questsData[gameState.currentQuestIndex];
+            const isCorrect = (selectedIndex === quest.correctIndex);
+
+            const modal = document.getElementById('feedback-modal');
+            const icon = document.getElementById('feedback-icon');
+            const title = document.getElementById('feedback-title');
+            const detail = document.getElementById('feedback-detail');
+
+            if (isCorrect) {
+                gameState.score += 10;
+                gameState.gold += 5;
+
+                // Time bonus
+                if (gameState.timeLeft > 30) gameState.score += 5;
+
+                icon.innerHTML = '<i class="fa-solid fa-circle-check text-green-400 animate-bounce"></i>';
+                title.innerText = "ถูกต้องแล้ว! 🎉";
+                title.className = "text-3xl font-extrabold mb-2 text-green-400";
+                detail.innerText = quest.explanation;
+            } else {
+                icon.innerHTML = '<i class="fa-solid fa-circle-xmark text-red-400"></i>';
+                title.innerText = "ยังไม่ถูกต้อง!";
+                title.className = "text-3xl font-extrabold mb-2 text-red-400";
+                detail.innerText = `ลองคิดใหม่อีกครั้งนะ! \n\n${quest.explanation}`;
+            }
+
+            updateStatsUI();
+            modal.classList.remove('hidden');
+        }
+
+        function closeFeedback() {
+            document.getElementById('feedback-modal').classList.add('hidden');
+            loadQuest(gameState.currentQuestIndex + 1);
+        }
+
+        function skipQuest() {
+            loadQuest(gameState.currentQuestIndex + 1);
+        }
+
+        function explainAnswerModal() {
+            document.getElementById('explain-modal').classList.remove('hidden');
+        }
+
+        function closeExplainModal(rewarded) {
+            if (rewarded) {
+                gameState.score += 5;
+                updateStatsUI();
+            }
+            document.getElementById('explain-modal').classList.add('hidden');
+        }
+
+        function updateStatsUI() {
+            document.getElementById('score-text').innerText = gameState.score;
+            document.getElementById('gold-text').innerText = gameState.gold;
+        }
+
+        function startTimer() {
+            gameState.timeLeft = gameState.difficulty === 'easy' ? 90 : (gameState.difficulty === 'medium' ? 60 : 40);
+            document.getElementById('timer-text').innerText = `${gameState.timeLeft}s`;
+
+            if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+
+            gameState.timerInterval = setInterval(() => {
+                gameState.timeLeft--;
+                document.getElementById('timer-text').innerText = `${gameState.timeLeft}s`;
+
+                if (gameState.timeLeft <= 0) {
+                    clearInterval(gameState.timerInterval);
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        function endGame() {
+            if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+
+            document.getElementById('gameover-modal').classList.remove('hidden');
+            document.getElementById('final-team-display').innerText = `ทีม: ${gameState.teamName}`;
+            document.getElementById('final-score').innerText = gameState.score;
+            document.getElementById('final-gold').innerText = gameState.gold;
+
+            // Calculate Rank Title
+            let rank = "โจรสลัดฝึกหัด";
+            if (gameState.score >= 40) rank = "กัปตันสมบัติแห่งความน่าจะเป็น";
+            if (gameState.score >= 60) rank = "เจ้าแห่งมหาสมุทรความน่าจะเป็น 👑";
+            document.getElementById('rank-title').innerText = rank;
+        }
+
+        function restartGame() {
+            document.getElementById('gameover-modal').classList.add('hidden');
+            document.getElementById('start-modal').classList.remove('hidden');
+        }
+
+        // Mouse Fallback Click Interaction for Canvas AR elements
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            arObjects.forEach((obj) => {
+                const dist = Math.hypot(clickX - obj.x, clickY - obj.y);
+                if (dist < obj.radius) {
+                    checkAnswer(obj.id);
+                }
+            });
+        });
+
+        // Touch Fallback Interaction for Mobile Devices
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 0) {
+                const rect = canvas.getBoundingClientRect();
+                const touchX = e.touches[0].clientX - rect.left;
+                const touchY = e.touches[0].clientY - rect.top;
+
+                arObjects.forEach((obj) => {
+                    const dist = Math.hypot(touchX - obj.x, touchY - obj.y);
+                    if (dist < obj.radius) {
+                        checkAnswer(obj.id);
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
