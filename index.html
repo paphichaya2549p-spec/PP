@@ -3,762 +3,960 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pirates of Probability - AR Body Movement Game</title>
+    <title>เกมกระโดดขยับร่างกาย จับผักแสนสนุก (Veggie AR Motion Game)</title>
     
-    <!-- Tailwind CSS CDN -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Google Fonts (Kanit) -->
+    <!-- Google Fonts: Kanit & Fredoka -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-
-    <!-- MediaPipe Hands for Body Gesture Detection -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Kanit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 
     <style>
         * {
-            font-family: 'Kanit', sans-serif;
+            font-family: 'Kanit', 'Fredoka', sans-serif;
             user-select: none;
             -webkit-user-select: none;
+            touch-action: manipulation;
         }
 
-        /* Animation Keyframes */
-        @keyframes float {
+        .bg-game-pattern {
+            background-color: #7dd3fc;
+            background-image: radial-gradient(#38bdf8 2px, transparent 2px), radial-gradient(#38bdf8 2px, #7dd3fc 2px);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+        }
+
+        /* Glassmorphism elements */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 4px solid rgba(255, 255, 255, 0.6);
+        }
+
+        .glass-dark {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        /* Bounce and pulse animations */
+        @keyframes floatSlow {
             0%, 100% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(-10px) rotate(2deg); }
+            50% { transform: translateY(-10px) rotate(3deg); }
         }
 
-        @keyframes pulse-glow {
-            0%, 100% { box-shadow: 0 0 15px rgba(234, 179, 8, 0.6); }
-            50% { box-shadow: 0 0 30px rgba(234, 179, 8, 0.9); }
+        .animate-float {
+            animation: floatSlow 3s ease-in-out infinite;
         }
 
-        @keyframes wave {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(-50%); }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 20px rgba(74, 222, 128, 0.6); }
+            50% { box-shadow: 0 0 35px rgba(74, 222, 128, 0.9); }
         }
 
-        .floating {
-            animation: float 3s ease-in-out infinite;
+        .pulse-glow {
+            animation: pulseGlow 2s infinite;
         }
 
-        .gold-glow {
-            animation: pulse-glow 2s infinite;
+        /* Canvas Flipped for Mirror Effect */
+        .mirror-mode {
+            transform: scaleX(-1);
         }
 
-        /* Pirate Wooden Theme Texture/Gradient */
-        .wood-panel {
-            background: linear-gradient(135deg, #78350f 0%, #451a03 100%);
-            border: 4px solid #f59e0b;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 0 8px 20px rgba(0,0,0,0.4);
-        }
-
-        .pirate-btn {
-            background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
-            border: 2px solid #fff;
-            box-shadow: 0 4px 0 #92400e;
-            transition: all 0.1s ease;
-        }
-
-        .pirate-btn:active {
-            transform: translateY(4px);
-            box-shadow: 0 0 0 #92400e;
-        }
-
-        /* Custom Scrollbar */
+        /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
         }
         ::-webkit-scrollbar-track {
-            background: #1e293b;
+            background: #f1f1f1;
+            border-radius: 10px;
         }
         ::-webkit-scrollbar-thumb {
-            background: #f59e0b;
-            border-radius: 4px;
+            background: #4ade80;
+            border-radius: 10px;
         }
     </style>
 </head>
-<body class="bg-slate-900 text-white overflow-hidden h-screen w-screen relative">
+<body class="bg-game-pattern min-h-screen overflow-hidden text-slate-800 flex flex-col justify-between select-none">
 
-    <!-- AR Camera Canvas Overlay Container -->
-    <div id="ar-view" class="absolute inset-0 z-0">
-        <!-- Live Video Element -->
-        <video id="webcam" class="w-full h-full object-cover hidden" playsinline></video>
-        <!-- AR Rendering Canvas -->
-        <canvas id="ar-canvas" class="w-full h-full object-cover"></canvas>
-    </div>
+    <!-- TOP NAVIGATION & STATUS BAR -->
+    <header class="relative z-30 p-3 md:p-4 flex justify-between items-center max-w-6xl mx-auto w-full">
+        <!-- Logo / Title -->
+        <div class="flex items-center gap-2 bg-white/90 px-4 py-2 rounded-2xl shadow-lg border-2 border-green-400">
+            <div class="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center text-white text-2xl shadow-md animate-bounce">
+                🥦
+            </div>
+            <div>
+                <h1 class="text-lg md:text-xl font-extrabold text-green-700 leading-tight">จับผัก AR Jump!</h1>
+                <p class="text-xs text-slate-500 font-medium hidden sm:block">ขยับร่างกาย ออกกำลังกายแสนสนุก</p>
+            </div>
+        </div>
 
-    <!-- UI Overlay Layer -->
-    <div id="ui-layer" class="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none p-4">
-
-        <!-- Header / Stats Bar -->
-        <header id="header-bar" class="flex justify-between items-center w-full pointer-events-auto bg-slate-900/80 backdrop-blur-md p-3 rounded-2xl border-2 border-yellow-500 shadow-xl">
-            <!-- Team & Mode Info -->
-            <div class="flex items-center space-x-3">
-                <div class="bg-yellow-500 text-slate-900 p-2.5 rounded-xl text-xl font-black flex items-center shadow-lg">
-                    <i class="fa-solid fa-ship mr-2"></i>
-                    <span id="team-name-display">ทีมกัปตันลูกเรือ</span>
-                </div>
-                <div class="hidden sm:flex flex-col">
-                    <span class="text-xs text-yellow-400 font-semibold">ระดับความยาก</span>
-                    <span id="difficulty-badge" class="text-sm font-bold text-green-400">Easy (ง่าย)</span>
+        <!-- Live Score & Combo Display -->
+        <div id="gameStatsUI" class="hidden flex items-center gap-3">
+            <!-- Score Card -->
+            <div class="bg-amber-400 text-amber-950 px-4 py-2 rounded-2xl shadow-lg border-2 border-amber-200 flex items-center gap-2">
+                <i class="fa-solid fa-star text-amber-100 text-xl animate-pulse"></i>
+                <div class="text-right">
+                    <div class="text-[10px] uppercase font-bold tracking-wider opacity-80">คะแนน</div>
+                    <div id="scoreText" class="text-xl md:text-2xl font-black leading-none">0</div>
                 </div>
             </div>
 
-            <!-- Game Stats: Score, Gold, Timer -->
-            <div class="flex items-center space-x-4">
-                <!-- Score -->
-                <div class="flex items-center bg-slate-800/90 px-3 py-1.5 rounded-xl border border-yellow-500/50">
-                    <i class="fa-solid fa-star text-yellow-400 text-lg mr-2"></i>
-                    <div>
-                        <div class="text-[10px] text-gray-400 leading-none">คะแนน</div>
-                        <div id="score-text" class="text-lg font-extrabold text-yellow-300">0</div>
-                    </div>
-                </div>
-
-                <!-- Gold Coins -->
-                <div class="flex items-center bg-slate-800/90 px-3 py-1.5 rounded-xl border border-yellow-500/50">
-                    <i class="fa-solid fa-coins text-amber-400 text-lg mr-2 floating"></i>
-                    <div>
-                        <div class="text-[10px] text-gray-400 leading-none">เหรียญทอง</div>
-                        <div id="gold-text" class="text-lg font-extrabold text-amber-300">0</div>
-                    </div>
-                </div>
-
-                <!-- Timer -->
-                <div class="flex items-center bg-slate-800/90 px-3.5 py-1.5 rounded-xl border border-red-500/50">
-                    <i class="fa-solid fa-stopwatch text-red-400 text-xl mr-2"></i>
-                    <div>
-                        <div class="text-[10px] text-gray-400 leading-none">เวลา</div>
-                        <div id="timer-text" class="text-lg font-black text-red-400">60s</div>
-                    </div>
+            <!-- Timer / Streak -->
+            <div class="bg-emerald-500 text-white px-4 py-2 rounded-2xl shadow-lg border-2 border-emerald-300 flex items-center gap-2">
+                <i class="fa-solid fa-clock text-emerald-200 text-xl"></i>
+                <div>
+                    <div class="text-[10px] uppercase font-bold tracking-wider opacity-80">เวลา</div>
+                    <div id="timerText" class="text-xl md:text-2xl font-black leading-none">60s</div>
                 </div>
             </div>
-        </header>
+        </div>
 
-        <!-- Main Banner / Quest Display Container -->
-        <main id="quest-container" class="my-auto mx-auto w-full max-w-3xl pointer-events-auto transition-all duration-300">
-            <!-- Quest Card (Injected dynamically) -->
-            <div id="quest-card" class="wood-panel rounded-3xl p-6 text-center text-white shadow-2xl relative overflow-hidden">
-                <div class="absolute -top-10 -right-10 text-yellow-500/10 text-9xl">
-                    <i class="fa-solid fa-compass"></i>
+        <!-- Controls / Mode Toggles -->
+        <div class="flex items-center gap-2">
+            <!-- Camera Toggle Button -->
+            <button id="toggleCamBtn" onclick="toggleWebcamMode()" class="bg-white/90 hover:bg-white text-slate-700 p-2.5 md:px-4 md:py-2.5 rounded-2xl shadow-md border-2 border-slate-200 flex items-center gap-2 transition active:scale-95" title="สลับโหมดกล้อง / สัมผัส">
+                <i id="camIcon" class="fa-solid fa-video text-green-600 text-lg"></i>
+                <span id="camText" class="text-sm font-bold hidden md:inline">โหมดกล้อง AR</span>
+            </button>
+
+            <!-- Sound Toggle -->
+            <button id="soundBtn" onclick="toggleSound()" class="bg-white/90 hover:bg-white text-slate-700 w-11 h-11 rounded-2xl shadow-md border-2 border-slate-200 flex items-center justify-center transition active:scale-95">
+                <i id="soundIcon" class="fa-solid fa-volume-high text-amber-500 text-lg"></i>
+            </button>
+
+            <!-- Pause / Menu -->
+            <button onclick="showMainMenu()" class="bg-rose-500 hover:bg-rose-600 text-white w-11 h-11 rounded-2xl shadow-md border-2 border-rose-300 flex items-center justify-center transition active:scale-95">
+                <i class="fa-solid fa-house text-lg"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN GAME CONTAINER -->
+    <main class="relative flex-1 max-w-5xl mx-auto w-full p-2 md:p-4 flex flex-col items-center justify-center">
+        
+        <!-- Interactive Game Screen Container -->
+        <div id="screenContainer" class="relative w-full aspect-[4/3] max-h-[72vh] rounded-3xl overflow-hidden shadow-2xl border-4 border-white bg-slate-900 flex items-center justify-center">
+            
+            <!-- Hidden Video Feed for Motion Processing -->
+            <video id="webcamVideo" class="hidden" playsinline muted></video>
+
+            <!-- Render Canvas (Combines Video, AR Visual Motion, Floating Veggies & Quiz UI) -->
+            <canvas id="gameCanvas" class="w-full h-full object-cover mirror-mode cursor-pointer"></canvas>
+
+            <!-- Motion Feedback Sensitivity Visualizer Indicator -->
+            <div id="motionIndicator" class="absolute top-4 left-4 bg-black/60 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 z-20 border border-white/20">
+                <span class="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping"></span>
+                <span id="motionStatusText">ระบบ AR ตรวจจับพร้อมใช้งาน</span>
+            </div>
+
+            <!-- Quiz Question Header Overlay (Active in Quiz Mode) -->
+            <div id="quizOverlay" class="hidden absolute top-4 left-1/2 -translate-x-1/2 w-11/12 max-w-xl bg-white/95 backdrop-blur-md p-4 rounded-2xl shadow-2xl border-4 border-amber-400 text-center z-20 animate-bounce">
+                <div class="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">คำถามขยับร่างกาย! 🤸‍♂️</div>
+                <h2 id="quizQuestionText" class="text-xl md:text-2xl font-extrabold text-slate-800">ผักชนิดใดมีสีส้ม กระต่ายชอบกิน?</h2>
+            </div>
+
+            <!-- Touch/Keyboard Assist Overlay Tips for Mobile/PC -->
+            <div id="touchAssistBar" class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-md text-white text-xs px-4 py-1.5 rounded-full z-20 pointer-events-none flex items-center gap-2 border border-white/20">
+                <i class="fa-solid fa-hand-pointer text-amber-300"></i>
+                <span>โบกมือ หรือใช้มือแตะผักบนหน้าจอได้เลย!</span>
+            </div>
+
+            <!-- OVERLAY 1: START MENU / MODE SELECT -->
+            <div id="startModal" class="absolute inset-0 bg-slate-950/80 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center text-white">
+                
+                <!-- Mascot & Title -->
+                <div class="animate-float mb-4">
+                    <span class="text-7xl md:text-8xl filter drop-shadow-lg">🥦🥕🌽</span>
                 </div>
                 
-                <div class="inline-block bg-yellow-500 text-slate-900 px-4 py-1 rounded-full font-extrabold text-sm mb-2 shadow">
-                    <span id="quest-number">ภารกิจที่ 1</span>: <span id="quest-title">เกาะตัวเลข</span>
-                </div>
-
-                <h2 id="quest-question" class="text-2xl sm:text-3xl font-bold my-3 text-yellow-200 drop-shadow-md">
-                    "ทอยลูกเต๋า 2 ลูก ผลรวมเท่ากับ 7 มีความน่าจะเป็นเท่าใด?"
-                </h2>
-
-                <p id="quest-instruction" class="text-sm sm:text-base text-amber-100/90 bg-black/30 py-2 px-4 rounded-xl inline-block">
-                    <i class="fa-solid fa-walking mr-1 text-yellow-400"></i> เดินไปยืนตรงเกาะคำตอบ AR บนพื้น หรือยกมือชี้คำตอบที่ถูกต้อง
+                <h1 class="text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-yellow-300 to-emerald-400 mb-2 drop-shadow">
+                    จับผัก AR Motion Jump
+                </h1>
+                <p class="text-slate-300 max-w-md text-sm md:text-base mb-6 font-light">
+                    มาออกกำลังกาย สนุกกับการเอื้อมมือ กระโดดจับผักสุขภาพ และตอบคำถามสุดสนุกกันเลย!
                 </p>
 
-                <!-- AR Trigger / Answer Display Overlay (When Gesture Active) -->
-                <div id="ar-gesture-status" class="mt-4 flex justify-center items-center space-x-2 text-xs text-yellow-300">
-                    <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-ping"></span>
-                    <span>ระบบ AR Body Motion กำลังตรวจจับท่าทางและตำแหน่งของคุณ...</span>
-                </div>
-            </div>
-        </main>
-
-        <!-- Dynamic Controls & Action Dock -->
-        <footer class="w-full pointer-events-auto flex flex-col sm:flex-row justify-between items-center gap-3 bg-slate-900/90 backdrop-blur-md p-3 rounded-2xl border-2 border-yellow-600/50">
-            <!-- Camera / Motion Status & Toggle -->
-            <div class="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-start">
-                <button id="btn-toggle-camera" onclick="toggleCamera()" class="pirate-btn px-4 py-2 rounded-xl text-slate-900 font-bold text-sm flex items-center">
-                    <i class="fa-solid fa-camera mr-2"></i> <span id="camera-btn-text">เปิดกล้อง AR</span>
-                </button>
-                <div class="text-xs text-slate-300 flex items-center">
-                    <i class="fa-solid fa-child-reaching text-yellow-400 text-base mr-1.5"></i>
-                    <span id="motion-status-text">พร้อมตรวจจับท่าทางผู้เล่น</span>
-                </div>
-            </div>
-
-            <!-- Action Buttons for Gameplay & Navigation -->
-            <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
-                <button onclick="explainAnswerModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-sm border border-blue-400 shadow transition flex items-center">
-                    <i class="fa-solid fa-lightbulb mr-1.5 text-yellow-300"></i> อธิบายเหตุผล (+5)
-                </button>
-                <button onclick="skipQuest()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold px-3 py-2 rounded-xl text-sm border border-slate-500">
-                    <i class="fa-solid fa-forward"></i>
-                </button>
-            </div>
-        </footer>
-    </div>
-
-    <!-- ================= MODALS & OVERLAYS ================= -->
-
-    <!-- Modal: Start / Menu / Settings -->
-    <div id="start-modal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-lg flex items-center justify-center p-4">
-        <div class="wood-panel max-w-xl w-full rounded-3xl p-6 sm:p-8 text-center text-white relative shadow-2xl overflow-y-auto max-h-[90vh]">
-            <div class="floating text-6xl text-yellow-400 mb-2">
-                <i class="fa-solid fa-skull-crossbones"></i>
-            </div>
-            <h1 class="text-3xl sm:text-4xl font-extrabold text-yellow-400 tracking-wide drop-shadow-lg mb-1">
-                ศึกโจรสลัดพิชิตมหาสมุทรแห่งความน่าจะเป็น
-            </h1>
-            <p class="text-amber-200 text-sm mb-6">Pirates of Probability: Active Body-Movement AR Game</p>
-
-            <!-- Form Setup -->
-            <div class="space-y-4 text-left bg-black/40 p-5 rounded-2xl border border-yellow-500/30 mb-6">
-                <div>
-                    <label class="block text-xs font-bold text-yellow-300 mb-1">ชื่อทีมโจรสลัด</label>
-                    <input type="text" id="input-team-name" value="ทีมกัปตันเหรียญทอง" class="w-full bg-slate-800 border-2 border-yellow-500/60 rounded-xl px-4 py-2 text-white font-bold focus:outline-none focus:border-yellow-400">
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-yellow-300 mb-1">ระดับความยาก</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button type="button" onclick="selectDifficulty('easy')" id="diff-easy" class="py-2 rounded-xl font-bold text-sm bg-green-600 text-white border-2 border-green-400">Easy (ง่าย)</button>
-                        <button type="button" onclick="selectDifficulty('medium')" id="diff-medium" class="py-2 rounded-xl font-bold text-sm bg-slate-800 text-gray-300 border border-slate-600">Medium (ปานกลาง)</button>
-                        <button type="button" onclick="selectDifficulty('hard')" id="diff-hard" class="py-2 rounded-xl font-bold text-sm bg-slate-800 text-gray-300 border border-slate-600">Hard (ท้าทาย)</button>
+                <!-- Camera Permission Alert Banner -->
+                <div id="camNotice" class="bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs md:text-sm px-4 py-2.5 rounded-2xl mb-6 max-w-md flex items-center gap-3">
+                    <i class="fa-solid fa-camera text-xl text-emerald-400"></i>
+                    <div class="text-left">
+                        <p class="font-bold">ใช้กล้อง WebCam ตรวจจับการเคลื่อนไหว</p>
+                        <p class="text-emerald-300/80 text-[11px]">หากไม่มีกล้อง สามารถใช้มือสัมผัสจอหรือกดแป้นพิมพ์ได้</p>
                     </div>
                 </div>
 
-                <div class="text-xs text-amber-200/80 bg-amber-900/30 p-3 rounded-lg border border-amber-600/30">
-                    <i class="fa-solid fa-circle-info text-yellow-400 mr-1"></i>
-                    <strong>กติกา AR ร่างกาย:</strong> นักเรียนใช้การขยับร่างกาย เดิน ยืน หรือชี้มือไปยังวัตถุ AR คำตอบที่ลอยอยู่บนพื้นจริงเพื่อพิชิตภารกิจ
+                <!-- Game Mode Buttons -->
+                <div class="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+                    <!-- Mode 1: Veggie Catch -->
+                    <button onclick="startGame('catch')" class="flex-1 bg-gradient-to-b from-green-400 to-emerald-600 hover:from-green-300 hover:to-emerald-500 text-white p-4 rounded-2xl shadow-xl border-b-4 border-emerald-800 font-extrabold text-lg flex flex-col items-center gap-1 transition transform active:scale-95 group">
+                        <i class="fa-solid fa-basket-shopping text-3xl group-hover:scale-110 transition"></i>
+                        <span>โหมดเก็บผักสวนครัว</span>
+                        <span class="text-xs font-normal opacity-90">โบกมือจับผักหลบขนม</span>
+                    </button>
+
+                    <!-- Mode 2: Veggie Quiz -->
+                    <button onclick="startGame('quiz')" class="flex-1 bg-gradient-to-b from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-white p-4 rounded-2xl shadow-xl border-b-4 border-orange-700 font-extrabold text-lg flex flex-col items-center gap-1 transition transform active:scale-95 group">
+                        <i class="fa-solid fa-circle-question text-3xl group-hover:scale-110 transition"></i>
+                        <span>โหมดตอบคำถาม</span>
+                        <span class="text-xs font-normal opacity-90">กระโดด/เอื้อมเลือกคำตอบ</span>
+                    </button>
                 </div>
             </div>
 
-            <button onclick="startGame()" class="pirate-btn w-full py-4 rounded-2xl text-slate-900 font-extrabold text-xl shadow-xl hover:brightness-110 flex items-center justify-center">
-                <i class="fa-solid fa-play mr-2"></i> เริ่มออกเดินเรือพิชิตสมบัติ!
-            </button>
-        </div>
-    </div>
-
-    <!-- Modal: Answer Feedback (Correct / Incorrect) -->
-    <div id="feedback-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
-        <div id="feedback-card" class="wood-panel max-w-md w-full rounded-3xl p-6 text-center text-white relative shadow-2xl transform transition-all duration-300 scale-95">
-            <div id="feedback-icon" class="text-7xl mb-3">
-                <!-- Icon Injected dynamically -->
-            </div>
-            <h3 id="feedback-title" class="text-3xl font-extrabold mb-2 text-yellow-300">ถูกต้องแล้ว!</h3>
-            <p id="feedback-detail" class="text-base text-amber-100 mb-6 bg-black/40 p-4 rounded-xl text-left border border-yellow-500/30">
-                คำอธิบายความน่าจะเป็น...
-            </p>
-            <button onclick="closeFeedback()" class="pirate-btn w-full py-3 rounded-xl text-slate-900 font-extrabold text-lg shadow-lg">
-                ภารกิจถัดไป <i class="fa-solid fa-arrow-right ml-2"></i>
-            </button>
-        </div>
-    </div>
-
-    <!-- Modal: Reason Explanation (+5 Points) -->
-    <div id="explain-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
-        <div class="wood-panel max-w-lg w-full rounded-3xl p-6 text-center text-white relative shadow-2xl">
-            <div class="text-4xl text-yellow-400 mb-2">
-                <i class="fa-solid fa-comments"></i>
-            </div>
-            <h3 class="text-2xl font-bold text-yellow-300 mb-2">อธิบายเหตุผลทางคณิตศาสตร์</h3>
-            <p class="text-sm text-amber-200 mb-4">ให้นักเรียนในทีมช่วยกันอธิบายเหตุผลให้เพื่อนหรือคุณครูฟังเพื่อรับโบนัสคะแนน +5</p>
-
-            <div class="bg-black/40 p-4 rounded-2xl text-left text-sm text-yellow-100 mb-5 border border-yellow-500/30 space-y-2">
-                <div class="font-bold text-yellow-400">แนวทางการอธิบาย:</div>
-                <div id="explanation-hint">• จำนวนผลลัพธ์ทั้งหมดที่อาจจะเกิดขึ้น (Sample Space) มีกี่แบบ?</div>
-                <div>• จำนวนเหตุการณ์ที่เราสนใจ (Event) มีกี่แบบ?</div>
-                <div>• สูตรความน่าจะเป็น P(E) = n(E) / n(S)</div>
-            </div>
-
-            <div class="flex space-x-3">
-                <button onclick="closeExplainModal(false)" class="w-1/2 py-3 rounded-xl bg-slate-700 hover:bg-slate-600 font-bold text-sm">ยังไม่อธิบาย</button>
-                <button onclick="closeExplainModal(true)" class="w-1/2 pirate-btn py-3 rounded-xl text-slate-900 font-extrabold text-sm shadow">อธิบายสำเร็จ (+5)</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Game Over / Summary -->
-    <div id="gameover-modal" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 hidden">
-        <div class="wood-panel max-w-xl w-full rounded-3xl p-6 sm:p-8 text-center text-white relative shadow-2xl">
-            <div class="floating text-7xl text-amber-400 mb-3">
-                <i class="fa-solid fa-trophy"></i>
-            </div>
-            <h2 class="text-3xl sm:text-4xl font-black text-yellow-400 mb-1">สรุปผลการพิชิตมหาสมุทร!</h2>
-            <p id="final-team-display" class="text-amber-200 font-bold mb-6">ทีม: กัปตันลูกเรือ</p>
-
-            <div class="grid grid-cols-2 gap-4 mb-6">
-                <div class="bg-black/50 p-4 rounded-2xl border border-yellow-500/40">
-                    <div class="text-xs text-gray-400">คะแนนรวมทั้งหมด</div>
-                    <div id="final-score" class="text-3xl font-black text-yellow-300">0</div>
+            <!-- OVERLAY 2: GAME OVER / RESULT SCREEN -->
+            <div id="gameOverModal" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-lg z-40 flex flex-col items-center justify-center p-6 text-center text-white">
+                
+                <div id="resultStars" class="text-5xl md:text-6xl mb-2 flex gap-2">
+                    <i class="fa-solid fa-star text-amber-400 animate-bounce"></i>
+                    <i class="fa-solid fa-star text-amber-400 animate-bounce [animation-delay:0.2s]"></i>
+                    <i class="fa-solid fa-star text-amber-400 animate-bounce [animation-delay:0.4s]"></i>
                 </div>
-                <div class="bg-black/50 p-4 rounded-2xl border border-amber-500/40">
-                    <div class="text-xs text-gray-400">สมบัติเหรียญทอง</div>
-                    <div id="final-gold" class="text-3xl font-black text-amber-400">0</div>
+
+                <h2 id="resultTitle" class="text-3xl md:text-4xl font-extrabold text-amber-300 mb-1">สุดยอดไปเลยเด็กๆ!</h2>
+                <p id="resultSubtitle" class="text-slate-300 text-sm mb-6">คุณได้ออกกำลังกายจับผักไปเยอะมาก!</p>
+
+                <!-- Final Score Card -->
+                <div class="bg-white/10 border border-white/20 p-6 rounded-3xl w-full max-w-xs mb-6 backdrop-blur-md">
+                    <div class="text-xs text-slate-300 font-semibold uppercase tracking-wider mb-1">คะแนนรวมทั้งหมด</div>
+                    <div id="finalScore" class="text-5xl font-black text-amber-400 mb-2">120</div>
+                    <div class="text-xs text-green-300 flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-fire"></i>
+                        <span>พลังผักสุขภาพพุ่งสูงขึ้น!</span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-4 w-full max-w-xs">
+                    <button onclick="restartCurrentGame()" class="flex-1 bg-green-500 hover:bg-green-400 text-white py-3.5 px-4 rounded-2xl font-bold border-b-4 border-green-700 transition active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span>เล่นอีกครั้ง</span>
+                    </button>
+                    <button onclick="showMainMenu()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3.5 px-4 rounded-2xl font-bold border-b-4 border-slate-900 transition active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-list"></i>
+                        <span>เปลี่ยนโหมด</span>
+                    </button>
                 </div>
             </div>
 
-            <div id="treasure-rank" class="bg-amber-900/40 p-4 rounded-2xl border border-amber-500/50 mb-6 text-sm font-semibold text-amber-200">
-                🏆 ฉายาโจรสลัด: <span id="rank-title" class="text-yellow-300 font-extrabold">เจ้าแห่งมหาสมุทรความน่าจะเป็น</span>
-            </div>
-
-            <button onclick="restartGame()" class="pirate-btn w-full py-4 rounded-2xl text-slate-900 font-extrabold text-xl shadow-xl">
-                <i class="fa-solid fa-rotate-right mr-2"></i> เล่นใหม่อีกครั้ง
-            </button>
         </div>
-    </div>
+    </main>
 
-    <!-- MAIN JAVASCRIPT LOGIC -->
+    <!-- FOOTER CONTROLS GUIDE -->
+    <footer class="p-3 text-center text-xs text-slate-600">
+        <div class="max-w-md mx-auto bg-white/70 backdrop-blur-sm py-2 px-4 rounded-full border border-white/80 shadow-sm flex items-center justify-around gap-2">
+            <span class="flex items-center gap-1 font-semibold text-slate-700">
+                <i class="fa-solid fa-camera text-green-600"></i> โบกมือจับผัก
+            </span>
+            <span class="text-slate-300">|</span>
+            <span class="flex items-center gap-1 font-semibold text-slate-700">
+                <i class="fa-solid fa-mouse-pointer text-amber-600"></i> คลิก/สัมผัสจอ
+            </span>
+            <span class="text-slate-300">|</span>
+            <span class="flex items-center gap-1 font-semibold text-slate-700">
+                <i class="fa-solid fa-keyboard text-indigo-600"></i> ปุ่ม [1] [2] [3]
+            </span>
+        </div>
+    </footer>
+
     <script>
-        /* ================= GAME STATE & VARIABLES ================= */
-        let gameState = {
-            teamName: 'ทีมกัปตันลูกเรือ',
-            difficulty: 'easy',
-            score: 0,
-            gold: 0,
-            currentQuestIndex: 0,
-            timeLeft: 60,
-            timerInterval: null,
-            cameraActive: false,
-            handDetected: false,
-            handPos: { x: 0.5, y: 0.5 }
-        };
+        /* ===================================================================
+           1. AUDIO SYNTHESIZER ENGINE (Web Audio API - No External Sound Files)
+           =================================================================== */
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
 
-        // Quest Data (ภารกิจคณิตศาสตร์ความน่าจะเป็น 4 รูปแบบตามโจทย์)
-        const questsData = [
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+            }
+
+            playPop() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.1);
+                
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            playCorrect() {
+                if (!this.enabled) return;
+                this.init();
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq;
+                    
+                    const startTime = this.ctx.currentTime + (idx * 0.06);
+                    gain.gain.setValueAtTime(0.25, startTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.2);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(startTime);
+                    osc.stop(startTime + 0.2);
+                });
+            }
+
+            playWrong() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(110, this.ctx.currentTime + 0.25);
+                
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playVictory() {
+                if (!this.enabled) return;
+                this.init();
+                const tune = [440, 554.37, 659.25, 880];
+                tune.forEach((freq, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    const st = this.ctx.currentTime + (i * 0.12);
+                    gain.gain.setValueAtTime(0.3, st);
+                    gain.gain.exponentialRampToValueAtTime(0.001, st + 0.3);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(st);
+                    osc.stop(st + 0.3);
+                });
+            }
+        }
+
+        const sound = new SoundEngine();
+
+        function toggleSound() {
+            sound.enabled = !sound.enabled;
+            const icon = document.getElementById('soundIcon');
+            if (sound.enabled) {
+                icon.className = "fa-solid fa-volume-high text-amber-500 text-lg";
+                sound.playPop();
+            } else {
+                icon.className = "fa-solid fa-volume-xmark text-slate-400 text-lg";
+            }
+        }
+
+        /* ===================================================================
+           2. GAME DATA & ITEMS DEFINITION
+           =================================================================== */
+        const VEGGIE_ITEMS = [
+            { name: 'แครอท', emoji: '🥕', points: 10, type: 'good' },
+            { name: 'บล็อคโคลี่', emoji: '🥦', points: 10, type: 'good' },
+            { name: 'ข้าวโพด', emoji: '🌽', points: 10, type: 'good' },
+            { name: 'มะเขือเทศ', emoji: '🍅', points: 10, type: 'good' },
+            { name: 'ฟักทอง', emoji: '🎃', points: 10, type: 'good' },
+            { name: 'แตงกวา', emoji: '🥒', points: 10, type: 'good' },
+            { name: 'โดนัท', emoji: '🍩', points: -5, type: 'bad' },
+            { name: 'น้ำอัดลม', emoji: '🥤', points: -5, type: 'bad' },
+            { name: 'เฟรนช์ฟรายส์', emoji: '🍟', points: -5, type: 'bad' }
+        ];
+
+        const QUIZ_QUESTIONS = [
             {
-                id: 1,
-                title: "เกาะตัวเลข (Number Islands)",
-                type: "islands",
-                question: "ทอยลูกเต๋า 2 ลูก ผลรวมเท่ากับ 7 มีความน่าจะเป็นเท่าใด?",
-                instruction: "เดินขยับร่างกายไปยืนบนเกาะคำตอบที่ถูกต้องบนพื้นที่ AR",
-                options: ["1/6", "5/36", "1/12", "7/36"],
-                correctIndex: 0,
-                explanation: "ผลรวมลูกเต๋าเท่ากับ 7 มี 6 แบบ ได้แก่ (1,6),(2,5),(3,4),(4,3),(5,2),(6,1) จากผลลัพธ์ทั้งหมด 36 แบบ ความน่าจะเป็นจึงเป็น 6/36 = 1/6"
+                question: "ผักชนิดใดมีสีส้ม กระต่ายชอบกินมากๆ ?",
+                options: [
+                    { name: 'แครอท', emoji: '🥕', correct: true },
+                    { name: 'บล็อคโคลี่', emoji: '🥦', correct: false }
+                ]
             },
             {
-                id: 2,
-                title: "ลูกเต๋ามนุษย์ (Human Dice)",
-                type: "human_dice",
-                question: "นักเรียน 2 คนทำท่าชูนิ้วเป็นลูกเต๋า คนที่หนึ่งชู 4 นิ้ว คนที่สองชู 3 นิ้ว ผลรวมมีโอกาสเกิดผลลัพธ์คี่เท่าใด?",
-                instruction: "ให้นักเรียน 2 คนรวมผลนิ้วมือ (4+3=7) แล้วเดินไปเลือกโอกาสที่ถูกต้อง",
-                options: ["1/2 (50%)", "1/3", "1/4", "2/3"],
-                correctIndex: 0,
-                explanation: "ผลรวมของลูกเต๋า 2 ลูกที่เป็นจำนวนคี่ มี 18 แบบจาก 36 แบบ ดังนั้นความน่าจะเป็นคือ 18/36 = 1/2 หรือ 50%"
+                question: "ผักชนิดใดดูคล้ายต้นไม้จิ๋วสีเขียว ?",
+                options: [
+                    { name: 'บล็อคโคลี่', emoji: '🥦', correct: true },
+                    { name: 'ข้าวโพด', emoji: '🌽', correct: false }
+                ]
             },
             {
-                id: 3,
-                title: "กราฟมนุษย์ 3D (Human Bar Chart)",
-                type: "human_graph",
-                question: "จากการทดลองทอยลูกเต๋า 2 ลูกหลายๆ ครั้ง ผลรวมตัวเลขใดมีโอกาสเกิดขึ้นได้มากที่สุด?",
-                instruction: "ให้นักเรียนเข้าประจำตำแหน่งเลข 2-12 บนพื้น AR แล้วเลือกยอดกราฟที่สูงที่สุด",
-                options: ["ผลรวมเท่ากับ 7", "ผลรวมเท่ากับ 12", "ผลรวมเท่ากับ 2", "ผลรวมเท่ากับ 6"],
-                correctIndex: 0,
-                explanation: "ผลรวม 7 มีจำนวนคู่ผลลัพธ์มากที่สุด คือ 6 แบบ (1+6, 2+5, 3+4, 4+3, 5+2, 6+1) กราฟความถี่จึงสูงที่สุด"
+                question: "อะไรคืออาหารสุขภาพที่ดีต่อร่างกายเด็กๆ ?",
+                options: [
+                    { name: 'ผักสดหลากสี', emoji: '🥗', correct: true },
+                    { name: 'น้ำอัดลมหวานๆ', emoji: '🥤', correct: false }
+                ]
             },
             {
-                id: 4,
-                title: "Pirate Reaction (ปฏิกิริยาโจรสลัด)",
-                type: "reaction",
-                question: "เหตุการณ์: 'ทอยลูกเต๋า 1 ลูกได้แต้มระหว่าง 1 ถึง 6'",
-                instruction: "ทำท่าทางตามคำสั่ง AR: หากแน่นอนให้ชูมือสองข้าง หากเป็นไปไม่ได้ให้ย่อตัว",
-                options: ["เกิดแน่นอน (Certain)", "เป็นไปไม่ได้ (Impossible)", "อาจจะเกิดขึ้น (Likely)"],
-                correctIndex: 0,
-                explanation: "ลูกเต๋าทั่วไปมีแต้ม 1, 2, 3, 4, 5, 6 ดังนั้นเหตุการณ์การได้แต้ม 1-6 จึงเป็นเหตุการณ์ที่เกิดขึ้นแน่นอน (ความน่าจะเป็น = 1)"
+                question: "ผักสีแดงชนิดใด มักนำมาทำซอสสปาเก็ตตี้ ?",
+                options: [
+                    { name: 'มะเขือเทศ', emoji: '🍅', correct: true },
+                    { name: 'ฟักทอง', emoji: '🎃', correct: false }
+                ]
+            },
+            {
+                question: "ผักสีเหลืองทอง ฝักยาวเรียงเม็ดสวยงาม คืออะไร ?",
+                options: [
+                    { name: 'แตงกวา', emoji: '🥒', correct: false },
+                    { name: 'ข้าวโพด', emoji: '🌽', correct: true }
+                ]
             }
         ];
 
-        /* ================= CANVAS AR ENGINE ================= */
-        const canvas = document.getElementById('ar-canvas');
-        const ctx = canvas.getContext('2d');
-        const videoElement = document.getElementById('webcam');
+        /* ===================================================================
+           3. WEBCAM & PIXEL MOTION TRACKING SYSTEM
+           =================================================================== */
+        let webcamEnabled = false;
+        let videoStream = null;
+        const videoElem = document.getElementById('webcamVideo');
+        const gameCanvas = document.getElementById('gameCanvas');
+        const ctx = gameCanvas.getContext('2d');
 
+        // Offscreen motion detection canvas
+        const motionCanvas = document.createElement('canvas');
+        const motionCtx = motionCanvas.getContext('2d', { willReadFrequently: true });
+        let prevFrameData = null;
+        let motionGrid = []; // Grid of detected motion hotspots
+
+        async function initWebcam() {
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480, facingMode: "user" },
+                    audio: false
+                });
+                videoElem.srcObject = videoStream;
+                await videoElem.play();
+                webcamEnabled = true;
+
+                // Set motion canvas size
+                motionCanvas.width = 160;
+                motionCanvas.height = 120;
+
+                updateCamUI(true);
+            } catch (err) {
+                console.warn("Webcam access declined or not supported. Falling back to touch/mouse mode.", err);
+                webcamEnabled = false;
+                updateCamUI(false);
+            }
+        }
+
+        function updateCamUI(isCamOn) {
+            const camIcon = document.getElementById('camIcon');
+            const camText = document.getElementById('camText');
+            const motionStatusText = document.getElementById('motionStatusText');
+
+            if (isCamOn) {
+                camIcon.className = "fa-solid fa-video text-green-600 text-lg";
+                camText.innerText = "โหมดกล้อง AR (เปิดอยู่)";
+                motionStatusText.innerText = "กล้อง AR ตรวจจับการขยับร่างกายพร้อมทำงาน";
+            } else {
+                camIcon.className = "fa-solid fa-video-slash text-rose-500 text-lg";
+                camText.innerText = "โหมดสัมผัส/คีย์บอร์ด";
+                motionStatusText.innerText = "ใช้มือแตะสัมผัส หรือ กดแป้นพิมพ์";
+            }
+        }
+
+        function toggleWebcamMode() {
+            if (webcamEnabled) {
+                if (videoStream) {
+                    videoStream.getTracks().forEach(track => track.stop());
+                }
+                webcamEnabled = false;
+                updateCamUI(false);
+                sound.playPop();
+            } else {
+                initWebcam();
+            }
+        }
+
+        // Computes motion difference between frame pixels inside interactive target zones
+        function processMotionDetection() {
+            if (!webcamEnabled || videoElem.readyState !== 4) return [];
+
+            motionCtx.drawImage(videoElem, 0, 0, motionCanvas.width, motionCanvas.height);
+            const currentFrame = motionCtx.getImageData(0, 0, motionCanvas.width, motionCanvas.height);
+            
+            let detectedHotspots = [];
+
+            if (prevFrameData) {
+                const curr = currentFrame.data;
+                const prev = prevFrameData.data;
+                const step = 4; // Check every 4th pixel for performance
+                const threshold = 35; // Pixel change threshold
+
+                const gridCols = 16;
+                const gridRows = 12;
+                const cellW = motionCanvas.width / gridCols;
+                const cellH = motionCanvas.height / gridRows;
+
+                let cellCounts = new Array(gridCols * gridRows).fill(0);
+
+                for (let y = 0; y < motionCanvas.height; y += 4) {
+                    for (let x = 0; x < motionCanvas.width; x += 4) {
+                        const idx = (y * motionCanvas.width + x) * 4;
+                        const rDiff = Math.abs(curr[idx] - prev[idx]);
+                        const gDiff = Math.abs(curr[idx + 1] - prev[idx + 1]);
+                        const bDiff = Math.abs(curr[idx + 2] - prev[idx + 2]);
+
+                        if (rDiff + gDiff + bDiff > threshold * 3) {
+                            const c = Math.floor(x / cellW);
+                            const r = Math.floor(y / cellH);
+                            cellCounts[r * gridCols + c]++;
+                        }
+                    }
+                }
+
+                // Collect grid zones with high motion intensity
+                for (let r = 0; r < gridRows; r++) {
+                    for (let c = 0; c < gridCols; c++) {
+                        const count = cellCounts[r * gridCols + c];
+                        if (count > 6) { // Sensitivity threshold
+                            detectedHotspots.push({
+                                x: (c + 0.5) * (gameCanvas.width / gridCols),
+                                y: (r + 0.5) * (gameCanvas.height / gridRows),
+                                radius: 35
+                            });
+                        }
+                    }
+                }
+            }
+
+            prevFrameData = currentFrame;
+            return detectedHotspots;
+        }
+
+        /* ===================================================================
+           4. GAME STATE & CORE ENGINE
+           =================================================================== */
+        let gameMode = 'catch'; // 'catch' or 'quiz'
+        let isPlaying = false;
+        let score = 0;
+        let timeRemaining = 60;
+        let gameTimerInterval = null;
+
+        // Interactive entities
+        let floatingVeggies = [];
+        let quizAnswers = [];
+        let particles = [];
+        let currentQuizIndex = 0;
+
+        // Resize Canvas to fit screen aspect ratio
         function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            const container = document.getElementById('screenContainer');
+            gameCanvas.width = container.clientWidth;
+            gameCanvas.height = container.clientHeight;
         }
         window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
 
-        // Canvas AR Animated Assets Logic
-        let arObjects = [];
-        let waveOffset = 0;
+        function spawnVeggie() {
+            if (floatingVeggies.length >= 6) return;
 
-        function initARScene() {
-            arObjects = [];
-            const quest = questsData[gameState.currentQuestIndex];
-            
-            // Create Interactive AR Islands / Option Nodes on Canvas
-            const opts = quest.options;
-            const total = opts.length;
-            
-            opts.forEach((opt, idx) => {
-                const angle = (idx / total) * Math.PI * 2;
-                // Position options evenly on the lower half of screen (Floor projection)
-                const marginX = canvas.width * 0.2;
-                const spacingX = (canvas.width - marginX * 2) / (total > 1 ? total - 1 : 1);
-                
-                arObjects.push({
-                    id: idx,
-                    text: opt,
-                    x: total === 1 ? canvas.width / 2 : marginX + spacingX * idx,
-                    y: canvas.height * 0.72,
-                    radius: Math.min(canvas.width * 0.1, 75),
-                    color: '#f59e0b',
-                    hovered: false,
-                    scale: 1
+            const randomItem = VEGGIE_ITEMS[Math.floor(Math.random() * VEGGIE_ITEMS.length)];
+            const radius = Math.min(gameCanvas.width, gameCanvas.height) * 0.08;
+
+            floatingVeggies.push({
+                x: Math.random() * (gameCanvas.width - radius * 2) + radius,
+                y: gameCanvas.height + radius,
+                radius: radius,
+                speedY: -(Math.random() * 2.5 + 2.0),
+                speedX: (Math.random() - 0.5) * 1.5,
+                item: randomItem,
+                scale: 1.0,
+                pulse: Math.random() * Math.PI
+            });
+        }
+
+        function setupQuizQuestion() {
+            const q = QUIZ_QUESTIONS[currentQuizIndex];
+            document.getElementById('quizQuestionText').innerText = q.question;
+
+            quizAnswers = [];
+            const radius = Math.min(gameCanvas.width, gameCanvas.height) * 0.12;
+
+            // Spawn 2 choice targets floating on Left and Right
+            q.options.forEach((opt, idx) => {
+                const posX = idx === 0 ? gameCanvas.width * 0.28 : gameCanvas.width * 0.72;
+                const posY = gameCanvas.height * 0.55;
+
+                quizAnswers.push({
+                    x: posX,
+                    y: posY,
+                    radius: radius,
+                    option: opt,
+                    scale: 1.0,
+                    pulse: 0
                 });
             });
         }
 
-        // Render AR Graphics Engine Loop
-        function renderAR() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 1. Render AR Ocean Background Waves (Fantasy Effect)
-            waveOffset += 0.03;
-            ctx.fillStyle = 'rgba(14, 116, 144, 0.25)';
-            ctx.beginPath();
-            for (let x = 0; x <= canvas.width; x += 20) {
-                let y = Math.sin(x * 0.01 + waveOffset) * 12 + canvas.height * 0.65;
-                if (x === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            }
-            ctx.lineTo(canvas.width, canvas.height);
-            ctx.lineTo(0, canvas.height);
-            ctx.fill();
-
-            // 2. Render Pirate Ship AR Floating Asset
-            const shipX = canvas.width * 0.85;
-            const shipY = canvas.height * 0.25 + Math.sin(waveOffset * 1.5) * 8;
-            ctx.save();
-            ctx.font = '60px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('🏴‍☠️', shipX, shipY);
-            ctx.restore();
-
-            // 3. Render Interactive AR Target Islands / Buttons
-            arObjects.forEach((obj) => {
-                ctx.save();
-                ctx.translate(obj.x, obj.y);
-
-                // Pulse effect if hovered
-                if (obj.hovered) {
-                    obj.scale = Math.min(obj.scale + 0.05, 1.15);
-                } else {
-                    obj.scale = Math.max(obj.scale - 0.05, 1.0);
-                }
-                ctx.scale(obj.scale, obj.scale);
-
-                // Island Base (3D Floor Circle Overlay)
-                ctx.beginPath();
-                ctx.ellipse(0, 20, obj.radius, obj.radius * 0.4, 0, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(217, 119, 6, 0.4)';
-                ctx.fill();
-
-                // AR Chest/Palm Tree Icon
-                ctx.font = '28px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('🏝️', 0, -obj.radius * 0.5);
-
-                // Answer Bubble Ring
-                ctx.beginPath();
-                ctx.arc(0, 0, obj.radius, 0, Math.PI * 2);
-                ctx.fillStyle = obj.hovered ? 'rgba(234, 179, 8, 0.95)' : 'rgba(15, 23, 42, 0.85)';
-                ctx.fill();
-                ctx.lineWidth = 4;
-                ctx.strokeStyle = '#f59e0b';
-                ctx.stroke();
-
-                // Option Text Label
-                ctx.fillStyle = obj.hovered ? '#0f172a' : '#fef08a';
-                ctx.font = 'bold 20px Kanit';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(obj.text, 0, 2);
-
-                ctx.restore();
-            });
-
-            // 4. Render User Body/Hand AR Tracker Marker
-            if (gameState.handDetected) {
-                const targetX = gameState.handPos.x * canvas.width;
-                const targetY = gameState.handPos.y * canvas.height;
-
-                // Custom AR Crosshair / Pirate Hook Cursor
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(targetX, targetY, 20, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(239, 68, 68, 0.5)';
-                ctx.fill();
-                ctx.lineWidth = 3;
-                ctx.strokeStyle = '#ef4444';
-                ctx.stroke();
-
-                ctx.font = '24px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('🎯', targetX, targetY);
-                ctx.restore();
-
-                // Collision Detection with AR Island Buttons
-                arObjects.forEach((obj) => {
-                    const dist = Math.hypot(targetX - obj.x, targetY - obj.y);
-                    if (dist < obj.radius) {
-                        if (!obj.hovered) {
-                            obj.hovered = true;
-                            // Trigger Selection
-                            setTimeout(() => {
-                                checkAnswer(obj.id);
-                            }, 300);
-                        }
-                    } else {
-                        obj.hovered = false;
-                    }
+        function createExplosion(x, y, emoji, isGood) {
+            const count = 12;
+            for (let i = 0; i < count; i++) {
+                const angle = (Math.PI * 2 / count) * i;
+                const speed = Math.random() * 5 + 3;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1.0,
+                    decay: Math.random() * 0.03 + 0.02,
+                    emoji: isGood ? (Math.random() > 0.5 ? '⭐' : '✨') : '💥',
+                    size: Math.random() * 16 + 14
                 });
             }
-
-            requestAnimationFrame(renderAR);
         }
 
-        /* ================= MEDIAPIPE HAND/BODY TRACKING ================= */
-        let hands = null;
-        let camera = null;
+        function updateGameLogic(hotspots) {
+            if (!isPlaying) return;
 
-        function setupMediaPipe() {
-            hands = new Hands({
-                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-            });
-
-            hands.setOptions({
-                maxNumHands: 1,
-                modelComplexity: 1,
-                minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5
-            });
-
-            hands.onResults((results) => {
-                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                    gameState.handDetected = true;
-                    // Index finger tip landmark (Point 8)
-                    const lm = results.multiHandLandmarks[0][8];
-                    // Mirroring X coordinate for natural camera movement
-                    gameState.handPos = { x: 1 - lm.x, y: lm.y };
-                    document.getElementById('motion-status-text').innerText = "ตรวจพบการเคลื่อนไหวของร่างกาย/มือ!";
-                } else {
-                    gameState.handDetected = false;
-                    document.getElementById('motion-status-text').innerText = "พร้อมตรวจจับท่าทางผู้เล่น";
+            // 1. Update Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
                 }
-            });
-        }
+            }
 
-        async function toggleCamera() {
-            const btnText = document.getElementById('camera-btn-text');
-            if (!gameState.cameraActive) {
-                try {
-                    videoElement.classList.remove('hidden');
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-                    videoElement.srcObject = stream;
-                    await videoElement.play();
+            // 2. Mode: Veggie Catcher Logic
+            if (gameMode === 'catch') {
+                if (Math.random() < 0.04) {
+                    spawnVeggie();
+                }
 
-                    if (!hands) setupMediaPipe();
+                for (let i = floatingVeggies.length - 1; i >= 0; i--) {
+                    let v = floatingVeggies[i];
+                    v.x += v.speedX;
+                    v.y += v.speedY;
+                    v.pulse += 0.05;
 
-                    // Camera frame processing loop
-                    async function processVideo() {
-                        if (gameState.cameraActive && !videoElement.paused) {
-                            await hands.send({ image: videoElement });
-                            requestAnimationFrame(processVideo);
+                    // Out of screen bounds check
+                    if (v.y < -v.radius * 2) {
+                        floatingVeggies.splice(i, 1);
+                        continue;
+                    }
+
+                    // Check collision with AR Motion Hotspots or Cursor
+                    let hit = false;
+                    for (let hs of hotspots) {
+                        const dist = Math.hypot(v.x - hs.x, v.y - hs.y);
+                        if (dist < v.radius + hs.radius) {
+                            hit = true;
+                            break;
                         }
                     }
-                    gameState.cameraActive = true;
-                    btnText.innerText = "ปิดกล้อง AR";
-                    processVideo();
-                } catch (err) {
-                    alert("ไม่สามารถเข้าถึงกล้องได้ ระบบจะใช้โหมด AR จำลองบนหน้าจอแทน");
-                    console.error("Camera access error:", err);
+
+                    if (hit) {
+                        // Process Hit
+                        score += v.item.points;
+                        if (score < 0) score = 0;
+                        document.getElementById('scoreText').innerText = score;
+
+                        if (v.item.type === 'good') {
+                            sound.playPop();
+                            createExplosion(v.x, v.y, v.item.emoji, true);
+                        } else {
+                            sound.playWrong();
+                            createExplosion(v.x, v.y, '💥', false);
+                        }
+
+                        floatingVeggies.splice(i, 1);
+                    }
                 }
+            } 
+            // 3. Mode: Veggie Quiz Logic
+            else if (gameMode === 'quiz') {
+                for (let ans of quizAnswers) {
+                    ans.pulse += 0.04;
+
+                    let hit = false;
+                    for (let hs of hotspots) {
+                        const dist = Math.hypot(ans.x - hs.x, ans.y - hs.y);
+                        if (dist < ans.radius + hs.radius) {
+                            hit = true;
+                            break;
+                        }
+                    }
+
+                    if (hit) {
+                        if (ans.option.correct) {
+                            sound.playCorrect();
+                            createExplosion(ans.x, ans.y, '⭐', true);
+                            score += 20;
+                        } else {
+                            sound.playWrong();
+                            createExplosion(ans.x, ans.y, '❌', false);
+                        }
+
+                        document.getElementById('scoreText').innerText = score;
+
+                        // Next Question
+                        currentQuizIndex = (currentQuizIndex + 1) % QUIZ_QUESTIONS.length;
+                        setupQuizQuestion();
+                        break;
+                    }
+                }
+            }
+        }
+
+        function renderCanvasFrame(hotspots) {
+            ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+            // A. Draw Live Mirror Webcam Feed if enabled
+            if (webcamEnabled && videoElem.readyState === 4) {
+                ctx.save();
+                ctx.drawImage(videoElem, 0, 0, gameCanvas.width, gameCanvas.height);
+                ctx.restore();
+
+                // Subtle dark tint overlay for contrast
+                ctx.fillStyle = "rgba(15, 23, 42, 0.25)";
+                ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
             } else {
-                gameState.cameraActive = false;
-                if (videoElement.srcObject) {
-                    videoElement.srcObject.getTracks().forEach(track => track.stop());
+                // Fallback colorful animated gradient background
+                const grad = ctx.createLinearGradient(0, 0, 0, gameCanvas.height);
+                grad.addColorStop(0, '#38bdf8');
+                grad.addColorStop(1, '#1e293b');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+            }
+
+            // B. Draw AR Motion Sparks / Hotspots Visual Aura
+            for (let hs of hotspots) {
+                ctx.beginPath();
+                ctx.arc(hs.x, hs.y, hs.radius * 1.2, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(74, 222, 128, 0.35)";
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(hs.x, hs.y, hs.radius * 0.6, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+                ctx.fill();
+            }
+
+            // C. Render Veggie Catch Mode Items
+            if (gameMode === 'catch') {
+                for (let v of floatingVeggies) {
+                    ctx.save();
+                    ctx.translate(v.x, v.y);
+
+                    const scale = 1.0 + Math.sin(v.pulse) * 0.08;
+                    ctx.scale(scale, scale);
+
+                    // Outer Bubble Ring
+                    ctx.beginPath();
+                    ctx.arc(0, 0, v.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = v.item.type === 'good' ? "rgba(255, 255, 255, 0.85)" : "rgba(254, 202, 202, 0.9)";
+                    ctx.fill();
+                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = v.item.type === 'good' ? "#22c55e" : "#ef4444";
+                    ctx.stroke();
+
+                    // Emoji Icon
+                    ctx.font = `${v.radius * 1.1}px sans-serif`;
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(v.item.emoji, 0, -2);
+
+                    // Name Label
+                    ctx.font = "bold 13px Kanit, sans-serif";
+                    ctx.fillStyle = "#0f172a";
+                    ctx.fillText(v.item.name, 0, v.radius + 14);
+
+                    ctx.restore();
                 }
-                videoElement.classList.add('hidden');
-                btnText.innerText = "เปิดกล้อง AR";
+            } 
+            // D. Render Quiz Mode Choices
+            else if (gameMode === 'quiz') {
+                for (let ans of quizAnswers) {
+                    ctx.save();
+                    ctx.translate(ans.x, ans.y);
+
+                    const scale = 1.0 + Math.sin(ans.pulse) * 0.06;
+                    ctx.scale(scale, scale);
+
+                    // Choice Card Bubble
+                    ctx.beginPath();
+                    ctx.arc(0, 0, ans.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+                    ctx.fill();
+                    ctx.lineWidth = 6;
+                    ctx.strokeStyle = "#f59e0b";
+                    ctx.stroke();
+
+                    // Choice Emoji
+                    ctx.font = `${ans.radius * 0.9}px sans-serif`;
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(ans.option.emoji, 0, -10);
+
+                    // Choice Text Banner
+                    ctx.font = "bold 16px Kanit, sans-serif";
+                    ctx.fillStyle = "#1e293b";
+                    ctx.fillText(ans.option.name, 0, ans.radius * 0.55);
+
+                    ctx.restore();
+                }
+            }
+
+            // E. Render Particle Explosions
+            for (let p of particles) {
+                ctx.save();
+                ctx.globalAlpha = p.life;
+                ctx.font = `${p.size}px sans-serif`;
+                ctx.fillText(p.emoji, p.x, p.y);
+                ctx.restore();
             }
         }
 
-        /* ================= GAMEPLAY CONTROLLER LOGIC ================= */
-        function selectDifficulty(diff) {
-            gameState.difficulty = diff;
-            const diffs = ['easy', 'medium', 'hard'];
-            diffs.forEach(d => {
-                const btn = document.getElementById(`diff-${d}`);
-                if (d === diff) {
-                    btn.className = "py-2 rounded-xl font-bold text-sm bg-green-600 text-white border-2 border-green-400 shadow";
-                } else {
-                    btn.className = "py-2 rounded-xl font-bold text-sm bg-slate-800 text-gray-300 border border-slate-600";
-                }
-            });
-
-            const badge = document.getElementById('difficulty-badge');
-            if (diff === 'easy') { badge.innerText = 'Easy (ง่าย)'; badge.className = 'text-sm font-bold text-green-400'; }
-            if (diff === 'medium') { badge.innerText = 'Medium (ปานกลาง)'; badge.className = 'text-sm font-bold text-yellow-400'; }
-            if (diff === 'hard') { badge.innerText = 'Hard (ท้าทาย)'; badge.className = 'text-sm font-bold text-red-400'; }
+        function gameLoop() {
+            const hotspots = processMotionDetection();
+            updateGameLogic(hotspots);
+            renderCanvasFrame(hotspots);
+            requestAnimationFrame(gameLoop);
         }
 
-        function startGame() {
-            const inputName = document.getElementById('input-team-name').value.trim();
-            if (inputName) gameState.teamName = inputName;
-            document.getElementById('team-name-display').innerText = gameState.teamName;
+        /* ===================================================================
+           5. FALLBACK INPUT HANDLERS (TOUCH, MOUSE & KEYBOARD)
+           =================================================================== */
+        function handleManualInteraction(clientX, clientY) {
+            if (!isPlaying) return;
 
-            document.getElementById('start-modal').classList.add('hidden');
-            
-            gameState.score = 0;
-            gameState.gold = 0;
-            gameState.currentQuestIndex = 0;
-            updateStatsUI();
+            const rect = gameCanvas.getBoundingClientRect();
+            let touchX = clientX - rect.left;
+            let touchY = clientY - rect.top;
 
-            loadQuest(0);
-            startTimer();
-            renderAR();
+            // Mirror correction since canvas is mirrored visually
+            touchX = gameCanvas.width - touchX;
+
+            const manualHotspot = [{ x: touchX, y: touchY, radius: 40 }];
+            updateGameLogic(manualHotspot);
         }
 
-        function loadQuest(index) {
-            if (index >= questsData.length) {
-                endGame();
-                return;
+        gameCanvas.addEventListener('mousedown', (e) => handleManualInteraction(e.clientX, e.clientY));
+        gameCanvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (e.touches.length > 0) {
+                handleManualInteraction(e.touches[0].clientX, e.touches[0].clientY);
             }
+        }, { passive: false });
 
-            gameState.currentQuestIndex = index;
-            const q = questsData[index];
+        // Keyboard support (Keys 1, 2, 3 or Left/Right Arrow)
+        window.addEventListener('keydown', (e) => {
+            if (!isPlaying) return;
 
-            document.getElementById('quest-number').innerText = `ภารกิจที่ ${q.id}`;
-            document.getElementById('quest-title').innerText = q.title;
-            document.getElementById('quest-question').innerText = `"${q.question}"`;
-            document.getElementById('quest-instruction').innerText = `👉 ${q.instruction}`;
+            if (gameMode === 'quiz' && quizAnswers.length >= 2) {
+                if (e.key === '1' || e.key === 'ArrowLeft') {
+                    handleManualInteraction(gameCanvas.width * 0.72, gameCanvas.height * 0.55);
+                } else if (e.key === '2' || e.key === 'ArrowRight') {
+                    handleManualInteraction(gameCanvas.width * 0.28, gameCanvas.height * 0.55);
+                }
+            }
+        });
 
-            initARScene();
-        }
+        /* ===================================================================
+           6. GAME LIFECYCLE MANAGEMENT
+           =================================================================== */
+        function startGame(mode) {
+            gameMode = mode;
+            score = 0;
+            timeRemaining = 60;
+            isPlaying = true;
+            floatingVeggies = [];
+            particles = [];
+            currentQuizIndex = 0;
 
-        function checkAnswer(selectedIndex) {
-            const quest = questsData[gameState.currentQuestIndex];
-            const isCorrect = (selectedIndex === quest.correctIndex);
+            document.getElementById('scoreText').innerText = "0";
+            document.getElementById('timerText').innerText = "60s";
 
-            const modal = document.getElementById('feedback-modal');
-            const icon = document.getElementById('feedback-icon');
-            const title = document.getElementById('feedback-title');
-            const detail = document.getElementById('feedback-detail');
+            // Toggle UI Elements
+            document.getElementById('startModal').classList.add('hidden');
+            document.getElementById('gameOverModal').classList.add('hidden');
+            document.getElementById('gameStatsUI').classList.remove('hidden');
 
-            if (isCorrect) {
-                gameState.score += 10;
-                gameState.gold += 5;
-
-                // Time bonus
-                if (gameState.timeLeft > 30) gameState.score += 5;
-
-                icon.innerHTML = '<i class="fa-solid fa-circle-check text-green-400 animate-bounce"></i>';
-                title.innerText = "ถูกต้องแล้ว! 🎉";
-                title.className = "text-3xl font-extrabold mb-2 text-green-400";
-                detail.innerText = quest.explanation;
+            if (gameMode === 'quiz') {
+                document.getElementById('quizOverlay').classList.remove('hidden');
+                setupQuizQuestion();
             } else {
-                icon.innerHTML = '<i class="fa-solid fa-circle-xmark text-red-400"></i>';
-                title.innerText = "ยังไม่ถูกต้อง!";
-                title.className = "text-3xl font-extrabold mb-2 text-red-400";
-                detail.innerText = `ลองคิดใหม่อีกครั้งนะ! \n\n${quest.explanation}`;
+                document.getElementById('quizOverlay').classList.add('hidden');
             }
 
-            updateStatsUI();
-            modal.classList.remove('hidden');
-        }
+            // Start Timer
+            if (gameTimerInterval) clearInterval(gameTimerInterval);
+            gameTimerInterval = setInterval(() => {
+                timeRemaining--;
+                document.getElementById('timerText').innerText = timeRemaining + "s";
 
-        function closeFeedback() {
-            document.getElementById('feedback-modal').classList.add('hidden');
-            loadQuest(gameState.currentQuestIndex + 1);
-        }
-
-        function skipQuest() {
-            loadQuest(gameState.currentQuestIndex + 1);
-        }
-
-        function explainAnswerModal() {
-            document.getElementById('explain-modal').classList.remove('hidden');
-        }
-
-        function closeExplainModal(rewarded) {
-            if (rewarded) {
-                gameState.score += 5;
-                updateStatsUI();
-            }
-            document.getElementById('explain-modal').classList.add('hidden');
-        }
-
-        function updateStatsUI() {
-            document.getElementById('score-text').innerText = gameState.score;
-            document.getElementById('gold-text').innerText = gameState.gold;
-        }
-
-        function startTimer() {
-            gameState.timeLeft = gameState.difficulty === 'easy' ? 90 : (gameState.difficulty === 'medium' ? 60 : 40);
-            document.getElementById('timer-text').innerText = `${gameState.timeLeft}s`;
-
-            if (gameState.timerInterval) clearInterval(gameState.timerInterval);
-
-            gameState.timerInterval = setInterval(() => {
-                gameState.timeLeft--;
-                document.getElementById('timer-text').innerText = `${gameState.timeLeft}s`;
-
-                if (gameState.timeLeft <= 0) {
-                    clearInterval(gameState.timerInterval);
+                if (timeRemaining <= 0) {
                     endGame();
                 }
             }, 1000);
+
+            sound.playPop();
         }
 
         function endGame() {
-            if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+            isPlaying = false;
+            clearInterval(gameTimerInterval);
 
-            document.getElementById('gameover-modal').classList.remove('hidden');
-            document.getElementById('final-team-display').innerText = `ทีม: ${gameState.teamName}`;
-            document.getElementById('final-score').innerText = gameState.score;
-            document.getElementById('final-gold').innerText = gameState.gold;
+            document.getElementById('finalScore').innerText = score;
+            document.getElementById('gameOverModal').classList.remove('hidden');
+            document.getElementById('gameStatsUI').classList.add('hidden');
+            document.getElementById('quizOverlay').classList.add('hidden');
 
-            // Calculate Rank Title
-            let rank = "โจรสลัดฝึกหัด";
-            if (gameState.score >= 40) rank = "กัปตันสมบัติแห่งความน่าจะเป็น";
-            if (gameState.score >= 60) rank = "เจ้าแห่งมหาสมุทรความน่าจะเป็น 👑";
-            document.getElementById('rank-title').innerText = rank;
+            sound.playVictory();
         }
 
-        function restartGame() {
-            document.getElementById('gameover-modal').classList.add('hidden');
-            document.getElementById('start-modal').classList.remove('hidden');
+        function restartCurrentGame() {
+            startGame(gameMode);
         }
 
-        // Mouse Fallback Click Interaction for Canvas AR elements
-        canvas.addEventListener('click', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const clickX = e.clientX - rect.left;
-            const clickY = e.clientY - rect.top;
+        function showMainMenu() {
+            isPlaying = false;
+            clearInterval(gameTimerInterval);
+            document.getElementById('startModal').classList.remove('hidden');
+            document.getElementById('gameOverModal').classList.add('hidden');
+            document.getElementById('gameStatsUI').classList.add('hidden');
+            document.getElementById('quizOverlay').classList.add('hidden');
+            sound.playPop();
+        }
 
-            arObjects.forEach((obj) => {
-                const dist = Math.hypot(clickX - obj.x, clickY - obj.y);
-                if (dist < obj.radius) {
-                    checkAnswer(obj.id);
-                }
-            });
-        });
-
-        // Touch Fallback Interaction for Mobile Devices
-        canvas.addEventListener('touchstart', (e) => {
-            if (e.touches.length > 0) {
-                const rect = canvas.getBoundingClientRect();
-                const touchX = e.touches[0].clientX - rect.left;
-                const touchY = e.touches[0].clientY - rect.top;
-
-                arObjects.forEach((obj) => {
-                    const dist = Math.hypot(touchX - obj.x, touchY - obj.y);
-                    if (dist < obj.radius) {
-                        checkAnswer(obj.id);
-                    }
-                });
-            }
-        });
+        window.onload = function() {
+            resizeCanvas();
+            initWebcam(); // Auto-request webcam on load
+            requestAnimationFrame(gameLoop);
+        };
     </script>
 </body>
 </html>
