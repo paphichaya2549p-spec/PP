@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>เกมกระโดดขยับร่างกาย จับผักแสนสนุก (Veggie AR Motion Game)</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts: Kanit & Fredoka -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Kanit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            font-family: 'Kanit', 'Fredoka', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        .bg-game-pattern {
+            background-color: #7dd3fc;
+            background-image: radial-gradient(#38bdf8 2px, transparent 2px), radial-gradient(#38bdf8 2px, #7dd3fc 2px);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+        }
+
+        /* Glassmorphism elements */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 4px solid rgba(255, 255, 255, 0.6);
+        }
+
+        .glass-dark {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        /* Bounce and pulse animations */
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(3deg); }
+        }
+
+        .animate-float {
+            animation: floatSlow 3s ease-in-out infinite;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 20px rgba(74, 222, 128, 0.6); }
+            50% { box-shadow: 0 0 35px rgba(74, 222, 128, 0.9); }
+        }
+
+        .pulse-glow {
+            animation: pulseGlow 2s infinite;
+        }
+
+        /* Canvas Flipped for Mirror Effect */
+        .mirror-mode {
+            transform: scaleX(-1);
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4ade80;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-game-pattern min-h-screen overflow-hidden text-slate-800 flex flex-col justify-between select-none">
+
+    <!-- TOP NAVIGATION & STATUS BAR -->
+    <header class="relative z-30 p-3 md:p-4 flex justify-between items-center max-w-6xl mx-auto w-full">
+        <!-- Logo / Title -->
+        <div class="flex items-center gap-2 bg-white/90 px-4 py-2 rounded-2xl shadow-lg border-2 border-green-400">
+            <div class="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center text-white text-2xl shadow-md animate-bounce">
+                🥦
+            </div>
+            <div>
+                <h1 class="text-lg md:text-xl font-extrabold text-green-700 leading-tight">จับผัก AR Jump!</h1>
+                <p class="text-xs text-slate-500 font-medium hidden sm:block">ขยับร่างกาย ออกกำลังกายแสนสนุก</p>
+            </div>
+        </div>
+
+        <!-- Live Score & Combo Display -->
+        <div id="gameStatsUI" class="hidden flex items-center gap-3">
+            <!-- Score Card -->
+            <div class="bg-amber-400 text-amber-950 px-4 py-2 rounded-2xl shadow-lg border-2 border-amber-200 flex items-center gap-2">
+                <i class="fa-solid fa-star text-amber-100 text-xl animate-pulse"></i>
+                <div class="text-right">
+                    <div class="text-[10px] uppercase font-bold tracking-wider opacity-80">คะแนน</div>
+                    <div id="scoreText" class="text-xl md:text-2xl font-black leading-none">0</div>
+                </div>
+            </div>
+
+            <!-- Timer / Streak -->
+            <div class="bg-emerald-500 text-white px-4 py-2 rounded-2xl shadow-lg border-2 border-emerald-300 flex items-center gap-2">
+                <i class="fa-solid fa-clock text-emerald-200 text-xl"></i>
+                <div>
+                    <div class="text-[10px] uppercase font-bold tracking-wider opacity-80">เวลา</div>
+                    <div id="timerText" class="text-xl md:text-2xl font-black leading-none">60s</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls / Mode Toggles -->
+        <div class="flex items-center gap-2">
+            <!-- Camera Toggle Button -->
+            <button id="toggleCamBtn" onclick="toggleWebcamMode()" class="bg-white/90 hover:bg-white text-slate-700 p-2.5 md:px-4 md:py-2.5 rounded-2xl shadow-md border-2 border-slate-200 flex items-center gap-2 transition active:scale-95" title="สลับโหมดกล้อง / สัมผัส">
+                <i id="camIcon" class="fa-solid fa-video text-green-600 text-lg"></i>
+                <span id="camText" class="text-sm font-bold hidden md:inline">โหมดกล้อง AR</span>
+            </button>
+
+            <!-- Sound Toggle -->
+            <button id="soundBtn" onclick="toggleSound()" class="bg-white/90 hover:bg-white text-slate-700 w-11 h-11 rounded-2xl shadow-md border-2 border-slate-200 flex items-center justify-center transition active:scale-95">
+                <i id="soundIcon" class="fa-solid fa-volume-high text-amber-500 text-lg"></i>
+            </button>
+
+            <!-- Pause / Menu -->
+            <button onclick="showMainMenu()" class="bg-rose-500 hover:bg-rose-600 text-white w-11 h-11 rounded-2xl shadow-md border-2 border-rose-300 flex items-center justify-center transition active:scale-95">
+                <i class="fa-solid fa-house text-lg"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN GAME CONTAINER -->
+    <main class="relative flex-1 max-w-5xl mx-auto w-full p-2 md:p-4 flex flex-col items-center justify-center">
+        
+        <!-- Interactive Game Screen Container -->
+        <div id="screenContainer" class="relative w-full aspect-[4/3] max-h-[72vh] rounded-3xl overflow-hidden shadow-2xl border-4 border-white bg-slate-900 flex items-center justify-center">
+            
+            <!-- Hidden Video Feed for Motion Processing -->
+            <video id="webcamVideo" class="hidden" playsinline muted></video>
+
+            <!-- Render Canvas (Combines Video, AR Visual Motion, Floating Veggies & Quiz UI) -->
+            <canvas id="gameCanvas" class="w-full h-full object-cover mirror-mode cursor-pointer"></canvas>
+
+            <!-- Motion Feedback Sensitivity Visualizer Indicator -->
+            <div id="motionIndicator" class="absolute top-4 left-4 bg-black/60 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 z-20 border border-white/20">
+                <span class="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping"></span>
+                <span id="motionStatusText">ระบบ AR ตรวจจับพร้อมใช้งาน</span>
+            </div>
+
+            <!-- Quiz Question Header Overlay (Active in Quiz Mode) -->
+            <div id="quizOverlay" class="hidden absolute top-4 left-1/2 -translate-x-1/2 w-11/12 max-w-xl bg-white/95 backdrop-blur-md p-4 rounded-2xl shadow-2xl border-4 border-amber-400 text-center z-20 animate-bounce">
+                <div class="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">คำถามขยับร่างกาย! 🤸‍♂️</div>
+                <h2 id="quizQuestionText" class="text-xl md:text-2xl font-extrabold text-slate-800">ผักชนิดใดมีสีส้ม กระต่ายชอบกิน?</h2>
+            </div>
+
+            <!-- Touch/Keyboard Assist Overlay Tips for Mobile/PC -->
+            <div id="touchAssistBar" class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-md text-white text-xs px-4 py-1.5 rounded-full z-20 pointer-events-none flex items-center gap-2 border border-white/20">
+                <i class="fa-solid fa-hand-pointer text-amber-300"></i>
+                <span>โบกมือ หรือใช้มือแตะผักบนหน้าจอได้เลย!</span>
+            </div>
+
+            <!-- OVERLAY 1: START MENU / MODE SELECT -->
+            <div id="startModal" class="absolute inset-0 bg-slate-950/80 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center text-white">
+                
+                <!-- Mascot & Title -->
+                <div class="animate-float mb-4">
+                    <span class="text-7xl md:text-8xl filter drop-shadow-lg">🥦🥕🌽</span>
+                </div>
+                
+                <h1 class="text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-yellow-300 to-emerald-400 mb-2 drop-shadow">
+                    จับผัก AR Motion Jump
+                </h1>
+                <p class="text-slate-300 max-w-md text-sm md:text-base mb-6 font-light">
+                    มาออกกำลังกาย สนุกกับการเอื้อมมือ กระโดดจับผักสุขภาพ และตอบคำถามสุดสนุกกันเลย!
+                </p>
+
+                <!-- Camera Permission Alert Banner -->
+                <div id="camNotice" class="bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs md:text-sm px-4 py-2.5 rounded-2xl mb-6 max-w-md flex items-center gap-3">
+                    <i class="fa-solid fa-camera text-xl text-emerald-400"></i>
+                    <div class="text-left">
+                        <p class="font-bold">ใช้กล้อง WebCam ตรวจจับการเคลื่อนไหว</p>
+                        <p class="text-emerald-300/80 text-[11px]">หากไม่มีกล้อง สามารถใช้มือสัมผัสจอหรือกดแป้นพิมพ์ได้</p>
+                    </div>
+                </div>
+
+                <!-- Game Mode Buttons -->
+                <div class="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+                    <!-- Mode 1: Veggie Catch -->
+                    <button onclick="startGame('catch')" class="flex-1 bg-gradient-to-b from-green-400 to-emerald-600 hover:from-green-300 hover:to-emerald-500 text-white p-4 rounded-2xl shadow-xl border-b-4 border-emerald-800 font-extrabold text-lg flex flex-col items-center gap-1 transition transform active:scale-95 group">
+                        <i class="fa-solid fa-basket-shopping text-3xl group-hover:scale-110 transition"></i>
+                        <span>โหมดเก็บผักสวนครัว</span>
+                        <span class="text-xs font-normal opacity-90">โบกมือจับผักหลบขนม</span>
+                    </button>
+
+                    <!-- Mode 2: Veggie Quiz -->
+                    <button onclick="startGame('quiz')" class="flex-1 bg-gradient-to-b from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-white p-4 rounded-2xl shadow-xl border-b-4 border-orange-700 font-extrabold text-lg flex flex-col items-center gap-1 transition transform active:scale-95 group">
+                        <i class="fa-solid fa-circle-question text-3xl group-hover:scale-110 transition"></i>
+                        <span>โหมดตอบคำถาม</span>
+                        <span class="text-xs font-normal opacity-90">กระโดด/เอื้อมเลือกคำตอบ</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- OVERLAY 2: GAME OVER / RESULT SCREEN -->
+            <div id="gameOverModal" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-lg z-40 flex flex-col items-center justify-center p-6 text-center text-white">
+                
+                <div id="resultStars" class="text-5xl md:text-6xl mb-2 flex gap-2">
+                    <i class="fa-solid fa-star text-amber-400 animate-bounce"></i>
+                    <i class="fa-solid fa-star text-amber-400 animate-bounce [animation-delay:0.2s]"></i>
+                    <i class="fa-solid fa-star text-amber-400 animate-bounce [animation-delay:0.4s]"></i>
+                </div>
+
+                <h2 id="resultTitle" class="text-3xl md:text-4xl font-extrabold text-amber-300 mb-1">สุดยอดไปเลยเด็กๆ!</h2>
+                <p id="resultSubtitle" class="text-slate-300 text-sm mb-6">คุณได้ออกกำลังกายจับผักไปเยอะมาก!</p>
+
+                <!-- Final Score Card -->
+                <div class="bg-white/10 border border-white/20 p-6 rounded-3xl w-full max-w-xs mb-6 backdrop-blur-md">
+                    <div class="text-xs text-slate-300 font-semibold uppercase tracking-wider mb-1">คะแนนรวมทั้งหมด</div>
+                    <div id="finalScore" class="text-5xl font-black text-amber-400 mb-2">120</div>
+                    <div class="text-xs text-green-300 flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-fire"></i>
+                        <span>พลังผักสุขภาพพุ่งสูงขึ้น!</span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-4 w-full max-w-xs">
+                    <button onclick="restartCurrentGame()" class="flex-1 bg-green-500 hover:bg-green-400 text-white py-3.5 px-4 rounded-2xl font-bold border-b-4 border-green-700 transition active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span>เล่นอีกครั้ง</span>
+                    </button>
+                    <button onclick="showMainMenu()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3.5 px-4 rounded-2xl font-bold border-b-4 border-slate-900 transition active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-list"></i>
+                        <span>เปลี่ยนโหมด</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- FOOTER CONTROLS GUIDE -->
+    <footer class="p-3 text-center text-xs text-slate-600">
+        <div class="max-w-md mx-auto bg-white/70 backdrop-blur-sm py-2 px-4 rounded-full border border-white/80 shadow-sm flex items-center justify-around gap-2">
+            <span class="flex items-center gap-1 font-semibold text-slate-700">
+                <i class="fa-solid fa-camera text-green-600"></i> โบกมือจับผัก
+            </span>
+            <span class="text-slate-300">|</span>
+            <span class="flex items-center gap-1 font-semibold text-slate-700">
+                <i class="fa-solid fa-mouse-pointer text-amber-600"></i> คลิก/สัมผัสจอ
+            </span>
+            <span class="text-slate-300">|</span>
+            <span class="flex items-center gap-1 font-semibold text-slate-700">
+                <i class="fa-solid fa-keyboard text-indigo-600"></i> ปุ่ม [1] [2] [3]
+            </span>
+        </div>
+    </footer>
+
+    <script>
+        /* ===================================================================
+           1. AUDIO SYNTHESIZER ENGINE (Web Audio API - No External Sound Files)
+           =================================================================== */
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+            }
+
+            playPop() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.1);
+                
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            playCorrect() {
+                if (!this.enabled) return;
+                this.init();
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq;
+                    
+                    const startTime = this.ctx.currentTime + (idx * 0.06);
+                    gain.gain.setValueAtTime(0.25, startTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.2);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(startTime);
+                    osc.stop(startTime + 0.2);
+                });
+            }
+
+            playWrong() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(110, this.ctx.currentTime + 0.25);
+                
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playVictory() {
+                if (!this.enabled) return;
+                this.init();
+                const tune = [440, 554.37, 659.25, 880];
+                tune.forEach((freq, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    const st = this.ctx.currentTime + (i * 0.12);
+                    gain.gain.setValueAtTime(0.3, st);
+                    gain.gain.exponentialRampToValueAtTime(0.001, st + 0.3);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(st);
+                    osc.stop(st + 0.3);
+                });
+            }
+        }
+
+        const sound = new SoundEngine();
+
+        function toggleSound() {
+            sound.enabled = !sound.enabled;
+            const icon = document.getElementById('soundIcon');
+            if (sound.enabled) {
+                icon.className = "fa-solid fa-volume-high text-amber-500 text-lg";
+                sound.playPop();
+            } else {
+                icon.className = "fa-solid fa-volume-xmark text-slate-400 text-lg";
+            }
+        }
+
+        /* ===================================================================
+           2. GAME DATA & ITEMS DEFINITION
+           =================================================================== */
+        const VEGGIE_ITEMS = [
+            { name: 'แครอท', emoji: '🥕', points: 10, type: 'good' },
+            { name: 'บล็อคโคลี่', emoji: '🥦', points: 10, type: 'good' },
+            { name: 'ข้าวโพด', emoji: '🌽', points: 10, type: 'good' },
+            { name: 'มะเขือเทศ', emoji: '🍅', points: 10, type: 'good' },
+            { name: 'ฟักทอง', emoji: '🎃', points: 10, type: 'good' },
+            { name: 'แตงกวา', emoji: '🥒', points: 10, type: 'good' },
+            { name: 'โดนัท', emoji: '🍩', points: -5, type: 'bad' },
+            { name: 'น้ำอัดลม', emoji: '🥤', points: -5, type: 'bad' },
+            { name: 'เฟรนช์ฟรายส์', emoji: '🍟', points: -5, type: 'bad' }
+        ];
+
+        const QUIZ_QUESTIONS = [
+            {
+                question: "ผักชนิดใดมีสีส้ม กระต่ายชอบกินมากๆ ?",
+                options: [
+                    { name: 'แครอท', emoji: '🥕', correct: true },
+                    { name: 'บล็อคโคลี่', emoji: '🥦', correct: false }
+                ]
+            },
+            {
+                question: "ผักชนิดใดดูคล้ายต้นไม้จิ๋วสีเขียว ?",
+                options: [
+                    { name: 'บล็อคโคลี่', emoji: '🥦', correct: true },
+                    { name: 'ข้าวโพด', emoji: '🌽', correct: false }
+                ]
+            },
+            {
+                question: "อะไรคืออาหารสุขภาพที่ดีต่อร่างกายเด็กๆ ?",
+                options: [
+                    { name: 'ผักสดหลากสี', emoji: '🥗', correct: true },
+                    { name: 'น้ำอัดลมหวานๆ', emoji: '🥤', correct: false }
+                ]
+            },
+            {
+                question: "ผักสีแดงชนิดใด มักนำมาทำซอสสปาเก็ตตี้ ?",
+                options: [
+                    { name: 'มะเขือเทศ', emoji: '🍅', correct: true },
+                    { name: 'ฟักทอง', emoji: '🎃', correct: false }
+                ]
+            },
+            {
+                question: "ผักสีเหลืองทอง ฝักยาวเรียงเม็ดสวยงาม คืออะไร ?",
+                options: [
+                    { name: 'แตงกวา', emoji: '🥒', correct: false },
+                    { name: 'ข้าวโพด', emoji: '🌽', correct: true }
+                ]
+            }
+        ];
+
+        /* ===================================================================
+           3. WEBCAM & PIXEL MOTION TRACKING SYSTEM
+           =================================================================== */
+        let webcamEnabled = false;
+        let videoStream = null;
+        const videoElem = document.getElementById('webcamVideo');
+        const gameCanvas = document.getElementById('gameCanvas');
+        const ctx = gameCanvas.getContext('2d');
+
+        // Offscreen motion detection canvas
+        const motionCanvas = document.createElement('canvas');
+        const motionCtx = motionCanvas.getContext('2d', { willReadFrequently: true });
+        let prevFrameData = null;
+        let motionGrid = []; // Grid of detected motion hotspots
+
+        async function initWebcam() {
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480, facingMode: "user" },
+                    audio: false
+                });
+                videoElem.srcObject = videoStream;
+                await videoElem.play();
+                webcamEnabled = true;
+
+                // Set motion canvas size
+                motionCanvas.width = 160;
+                motionCanvas.height = 120;
+
+                updateCamUI(true);
+            } catch (err) {
+                console.warn("Webcam access declined or not supported. Falling back to touch/mouse mode.", err);
+                webcamEnabled = false;
+                updateCamUI(false);
+            }
+        }
+
+        function updateCamUI(isCamOn) {
+            const camIcon = document.getElementById('camIcon');
+            const camText = document.getElementById('camText');
+            const motionStatusText = document.getElementById('motionStatusText');
+
+            if (isCamOn) {
+                camIcon.className = "fa-solid fa-video text-green-600 text-lg";
+                camText.innerText = "โหมดกล้อง AR (เปิดอยู่)";
+                motionStatusText.innerText = "กล้อง AR ตรวจจับการขยับร่างกายพร้อมทำงาน";
+            } else {
+                camIcon.className = "fa-solid fa-video-slash text-rose-500 text-lg";
+                camText.innerText = "โหมดสัมผัส/คีย์บอร์ด";
+                motionStatusText.innerText = "ใช้มือแตะสัมผัส หรือ กดแป้นพิมพ์";
+            }
+        }
+
+        function toggleWebcamMode() {
+            if (webcamEnabled) {
+                if (videoStream) {
+                    videoStream.getTracks().forEach(track => track.stop());
+                }
+                webcamEnabled = false;
+                updateCamUI(false);
+                sound.playPop();
+            } else {
+                initWebcam();
+            }
+        }
+
+        // Computes motion difference between frame pixels inside interactive target zones
+        function processMotionDetection() {
+            if (!webcamEnabled || videoElem.readyState !== 4) return [];
+
+            motionCtx.drawImage(videoElem, 0, 0, motionCanvas.width, motionCanvas.height);
+            const currentFrame = motionCtx.getImageData(0, 0, motionCanvas.width, motionCanvas.height);
+            
+            let detectedHotspots = [];
+
+            if (prevFrameData) {
+                const curr = currentFrame.data;
+                const prev = prevFrameData.data;
+                const step = 4; // Check every 4th pixel for performance
+                const threshold = 35; // Pixel change threshold
+
+                const gridCols = 16;
+                const gridRows = 12;
+                const cellW = motionCanvas.width / gridCols;
+                const cellH = motionCanvas.height / gridRows;
+
+                let cellCounts = new Array(gridCols * gridRows).fill(0);
+
+                for (let y = 0; y < motionCanvas.height; y += 4) {
+                    for (let x = 0; x < motionCanvas.width; x += 4) {
+                        const idx = (y * motionCanvas.width + x) * 4;
+                        const rDiff = Math.abs(curr[idx] - prev[idx]);
+                        const gDiff = Math.abs(curr[idx + 1] - prev[idx + 1]);
+                        const bDiff = Math.abs(curr[idx + 2] - prev[idx + 2]);
+
+                        if (rDiff + gDiff + bDiff > threshold * 3) {
+                            const c = Math.floor(x / cellW);
+                            const r = Math.floor(y / cellH);
+                            cellCounts[r * gridCols + c]++;
+                        }
+                    }
+                }
+
+                // Collect grid zones with high motion intensity
+                for (let r = 0; r < gridRows; r++) {
+                    for (let c = 0; c < gridCols; c++) {
+                        const count = cellCounts[r * gridCols + c];
+                        if (count > 6) { // Sensitivity threshold
+                            detectedHotspots.push({
+                                x: (c + 0.5) * (gameCanvas.width / gridCols),
+                                y: (r + 0.5) * (gameCanvas.height / gridRows),
+                                radius: 35
+                            });
+                        }
+                    }
+                }
+            }
+
+            prevFrameData = currentFrame;
+            return detectedHotspots;
+        }
+
+        /* ===================================================================
+           4. GAME STATE & CORE ENGINE
+           =================================================================== */
+        let gameMode = 'catch'; // 'catch' or 'quiz'
+        let isPlaying = false;
+        let score = 0;
+        let timeRemaining = 60;
+        let gameTimerInterval = null;
+
+        // Interactive entities
+        let floatingVeggies = [];
+        let quizAnswers = [];
+        let particles = [];
+        let currentQuizIndex = 0;
+
+        // Resize Canvas to fit screen aspect ratio
+        function resizeCanvas() {
+            const container = document.getElementById('screenContainer');
+            gameCanvas.width = container.clientWidth;
+            gameCanvas.height = container.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function spawnVeggie() {
+            if (floatingVeggies.length >= 6) return;
+
+            const randomItem = VEGGIE_ITEMS[Math.floor(Math.random() * VEGGIE_ITEMS.length)];
+            const radius = Math.min(gameCanvas.width, gameCanvas.height) * 0.08;
+
+            floatingVeggies.push({
+                x: Math.random() * (gameCanvas.width - radius * 2) + radius,
+                y: gameCanvas.height + radius,
+                radius: radius,
+                speedY: -(Math.random() * 2.5 + 2.0),
+                speedX: (Math.random() - 0.5) * 1.5,
+                item: randomItem,
+                scale: 1.0,
+                pulse: Math.random() * Math.PI
+            });
+        }
+
+        function setupQuizQuestion() {
+            const q = QUIZ_QUESTIONS[currentQuizIndex];
+            document.getElementById('quizQuestionText').innerText = q.question;
+
+            quizAnswers = [];
+            const radius = Math.min(gameCanvas.width, gameCanvas.height) * 0.12;
+
+            // Spawn 2 choice targets floating on Left and Right
+            q.options.forEach((opt, idx) => {
+                const posX = idx === 0 ? gameCanvas.width * 0.28 : gameCanvas.width * 0.72;
+                const posY = gameCanvas.height * 0.55;
+
+                quizAnswers.push({
+                    x: posX,
+                    y: posY,
+                    radius: radius,
+                    option: opt,
+                    scale: 1.0,
+                    pulse: 0
+                });
+            });
+        }
+
+        function createExplosion(x, y, emoji, isGood) {
+            const count = 12;
+            for (let i = 0; i < count; i++) {
+                const angle = (Math.PI * 2 / count) * i;
+                const speed = Math.random() * 5 + 3;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1.0,
+                    decay: Math.random() * 0.03 + 0.02,
+                    emoji: isGood ? (Math.random() > 0.5 ? '⭐' : '✨') : '💥',
+                    size: Math.random() * 16 + 14
+                });
+            }
+        }
+
+        function updateGameLogic(hotspots) {
+            if (!isPlaying) return;
+
+            // 1. Update Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            // 2. Mode: Veggie Catcher Logic
+            if (gameMode === 'catch') {
+                if (Math.random() < 0.04) {
+                    spawnVeggie();
+                }
+
+                for (let i = floatingVeggies.length - 1; i >= 0; i--) {
+                    let v = floatingVeggies[i];
+                    v.x += v.speedX;
+                    v.y += v.speedY;
+                    v.pulse += 0.05;
+
+                    // Out of screen bounds check
+                    if (v.y < -v.radius * 2) {
+                        floatingVeggies.splice(i, 1);
+                        continue;
+                    }
+
+                    // Check collision with AR Motion Hotspots or Cursor
+                    let hit = false;
+                    for (let hs of hotspots) {
+                        const dist = Math.hypot(v.x - hs.x, v.y - hs.y);
+                        if (dist < v.radius + hs.radius) {
+                            hit = true;
+                            break;
+                        }
+                    }
+
+                    if (hit) {
+                        // Process Hit
+                        score += v.item.points;
+                        if (score < 0) score = 0;
+                        document.getElementById('scoreText').innerText = score;
+
+                        if (v.item.type === 'good') {
+                            sound.playPop();
+                            createExplosion(v.x, v.y, v.item.emoji, true);
+                        } else {
+                            sound.playWrong();
+                            createExplosion(v.x, v.y, '💥', false);
+                        }
+
+                        floatingVeggies.splice(i, 1);
+                    }
+                }
+            } 
+            // 3. Mode: Veggie Quiz Logic
+            else if (gameMode === 'quiz') {
+                for (let ans of quizAnswers) {
+                    ans.pulse += 0.04;
+
+                    let hit = false;
+                    for (let hs of hotspots) {
+                        const dist = Math.hypot(ans.x - hs.x, ans.y - hs.y);
+                        if (dist < ans.radius + hs.radius) {
+                            hit = true;
+                            break;
+                        }
+                    }
+
+                    if (hit) {
+                        if (ans.option.correct) {
+                            sound.playCorrect();
+                            createExplosion(ans.x, ans.y, '⭐', true);
+                            score += 20;
+                        } else {
+                            sound.playWrong();
+                            createExplosion(ans.x, ans.y, '❌', false);
+                        }
+
+                        document.getElementById('scoreText').innerText = score;
+
+                        // Next Question
+                        currentQuizIndex = (currentQuizIndex + 1) % QUIZ_QUESTIONS.length;
+                        setupQuizQuestion();
+                        break;
+                    }
+                }
+            }
+        }
+
+        function renderCanvasFrame(hotspots) {
+            ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+            // A. Draw Live Mirror Webcam Feed if enabled
+            if (webcamEnabled && videoElem.readyState === 4) {
+                ctx.save();
+                ctx.drawImage(videoElem, 0, 0, gameCanvas.width, gameCanvas.height);
+                ctx.restore();
+
+                // Subtle dark tint overlay for contrast
+                ctx.fillStyle = "rgba(15, 23, 42, 0.25)";
+                ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+            } else {
+                // Fallback colorful animated gradient background
+                const grad = ctx.createLinearGradient(0, 0, 0, gameCanvas.height);
+                grad.addColorStop(0, '#38bdf8');
+                grad.addColorStop(1, '#1e293b');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+            }
+
+            // B. Draw AR Motion Sparks / Hotspots Visual Aura
+            for (let hs of hotspots) {
+                ctx.beginPath();
+                ctx.arc(hs.x, hs.y, hs.radius * 1.2, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(74, 222, 128, 0.35)";
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(hs.x, hs.y, hs.radius * 0.6, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+                ctx.fill();
+            }
+
+            // C. Render Veggie Catch Mode Items
+            if (gameMode === 'catch') {
+                for (let v of floatingVeggies) {
+                    ctx.save();
+                    ctx.translate(v.x, v.y);
+
+                    const scale = 1.0 + Math.sin(v.pulse) * 0.08;
+                    ctx.scale(scale, scale);
+
+                    // Outer Bubble Ring
+                    ctx.beginPath();
+                    ctx.arc(0, 0, v.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = v.item.type === 'good' ? "rgba(255, 255, 255, 0.85)" : "rgba(254, 202, 202, 0.9)";
+                    ctx.fill();
+                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = v.item.type === 'good' ? "#22c55e" : "#ef4444";
+                    ctx.stroke();
+
+                    // Emoji Icon
+                    ctx.font = `${v.radius * 1.1}px sans-serif`;
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(v.item.emoji, 0, -2);
+
+                    // Name Label
+                    ctx.font = "bold 13px Kanit, sans-serif";
+                    ctx.fillStyle = "#0f172a";
+                    ctx.fillText(v.item.name, 0, v.radius + 14);
+
+                    ctx.restore();
+                }
+            } 
+            // D. Render Quiz Mode Choices
+            else if (gameMode === 'quiz') {
+                for (let ans of quizAnswers) {
+                    ctx.save();
+                    ctx.translate(ans.x, ans.y);
+
+                    const scale = 1.0 + Math.sin(ans.pulse) * 0.06;
+                    ctx.scale(scale, scale);
+
+                    // Choice Card Bubble
+                    ctx.beginPath();
+                    ctx.arc(0, 0, ans.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+                    ctx.fill();
+                    ctx.lineWidth = 6;
+                    ctx.strokeStyle = "#f59e0b";
+                    ctx.stroke();
+
+                    // Choice Emoji
+                    ctx.font = `${ans.radius * 0.9}px sans-serif`;
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(ans.option.emoji, 0, -10);
+
+                    // Choice Text Banner
+                    ctx.font = "bold 16px Kanit, sans-serif";
+                    ctx.fillStyle = "#1e293b";
+                    ctx.fillText(ans.option.name, 0, ans.radius * 0.55);
+
+                    ctx.restore();
+                }
+            }
+
+            // E. Render Particle Explosions
+            for (let p of particles) {
+                ctx.save();
+                ctx.globalAlpha = p.life;
+                ctx.font = `${p.size}px sans-serif`;
+                ctx.fillText(p.emoji, p.x, p.y);
+                ctx.restore();
+            }
+        }
+
+        function gameLoop() {
+            const hotspots = processMotionDetection();
+            updateGameLogic(hotspots);
+            renderCanvasFrame(hotspots);
+            requestAnimationFrame(gameLoop);
+        }
+
+        /* ===================================================================
+           5. FALLBACK INPUT HANDLERS (TOUCH, MOUSE & KEYBOARD)
+           =================================================================== */
+        function handleManualInteraction(clientX, clientY) {
+            if (!isPlaying) return;
+
+            const rect = gameCanvas.getBoundingClientRect();
+            let touchX = clientX - rect.left;
+            let touchY = clientY - rect.top;
+
+            // Mirror correction since canvas is mirrored visually
+            touchX = gameCanvas.width - touchX;
+
+            const manualHotspot = [{ x: touchX, y: touchY, radius: 40 }];
+            updateGameLogic(manualHotspot);
+        }
+
+        gameCanvas.addEventListener('mousedown', (e) => handleManualInteraction(e.clientX, e.clientY));
+        gameCanvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (e.touches.length > 0) {
+                handleManualInteraction(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: false });
+
+        // Keyboard support (Keys 1, 2, 3 or Left/Right Arrow)
+        window.addEventListener('keydown', (e) => {
+            if (!isPlaying) return;
+
+            if (gameMode === 'quiz' && quizAnswers.length >= 2) {
+                if (e.key === '1' || e.key === 'ArrowLeft') {
+                    handleManualInteraction(gameCanvas.width * 0.72, gameCanvas.height * 0.55);
+                } else if (e.key === '2' || e.key === 'ArrowRight') {
+                    handleManualInteraction(gameCanvas.width * 0.28, gameCanvas.height * 0.55);
+                }
+            }
+        });
+
+        /* ===================================================================
+           6. GAME LIFECYCLE MANAGEMENT
+           =================================================================== */
+        function startGame(mode) {
+            gameMode = mode;
+            score = 0;
+            timeRemaining = 60;
+            isPlaying = true;
+            floatingVeggies = [];
+            particles = [];
+            currentQuizIndex = 0;
+
+            document.getElementById('scoreText').innerText = "0";
+            document.getElementById('timerText').innerText = "60s";
+
+            // Toggle UI Elements
+            document.getElementById('startModal').classList.add('hidden');
+            document.getElementById('gameOverModal').classList.add('hidden');
+            document.getElementById('gameStatsUI').classList.remove('hidden');
+
+            if (gameMode === 'quiz') {
+                document.getElementById('quizOverlay').classList.remove('hidden');
+                setupQuizQuestion();
+            } else {
+                document.getElementById('quizOverlay').classList.add('hidden');
+            }
+
+            // Start Timer
+            if (gameTimerInterval) clearInterval(gameTimerInterval);
+            gameTimerInterval = setInterval(() => {
+                timeRemaining--;
+                document.getElementById('timerText').innerText = timeRemaining + "s";
+
+                if (timeRemaining <= 0) {
+                    endGame();
+                }
+            }, 1000);
+
+            sound.playPop();
+        }
+
+        function endGame() {
+            isPlaying = false;
+            clearInterval(gameTimerInterval);
+
+            document.getElementById('finalScore').innerText = score;
+            document.getElementById('gameOverModal').classList.remove('hidden');
+            document.getElementById('gameStatsUI').classList.add('hidden');
+            document.getElementById('quizOverlay').classList.add('hidden');
+
+            sound.playVictory();
+        }
+
+        function restartCurrentGame() {
+            startGame(gameMode);
+        }
+
+        function showMainMenu() {
+            isPlaying = false;
+            clearInterval(gameTimerInterval);
+            document.getElementById('startModal').classList.remove('hidden');
+            document.getElementById('gameOverModal').classList.add('hidden');
+            document.getElementById('gameStatsUI').classList.add('hidden');
+            document.getElementById('quizOverlay').classList.add('hidden');
+            sound.playPop();
+        }
+
+        window.onload = function() {
+            resizeCanvas();
+            initWebcam(); // Auto-request webcam on load
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
